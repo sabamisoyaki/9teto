@@ -1,0 +1,17 @@
+# IDE/editor settings
+.vscode/
+.vs/
+.classpath
+.project
+.git.backup-*/
+
+# Build artifacts
+out/
+target/
+app.jar
+
+# Local SDKs
+openjfx-25.0.1_windows-x64_bin-sdk/
+
+# Local audio assets
+audio/
