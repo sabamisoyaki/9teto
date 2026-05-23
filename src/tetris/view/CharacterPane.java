@@ -2,7 +2,7 @@ package tetris.view;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import tetris.ResourcePath;
 
 import javafx.geometry.Pos;
 import javafx.scene.image.Image;
@@ -12,10 +12,10 @@ import javafx.scene.shape.Rectangle;
 
 public class CharacterPane extends StackPane {
 
-    private static final Path DEFAULT_CHARACTER_IMAGE = Paths.get("images", "character.png");
-    private static final Path ROTATE_CHARACTER_IMAGE_1 = Paths.get("images", "character-rotate-1.png");
-    private static final Path ROTATE_CHARACTER_IMAGE_2 = Paths.get("images", "character-rotate-2.png");
-    private static final Path ROTATE_CHARACTER_IMAGE_3 = Paths.get("images", "character-rotate-3.png");
+    private static final Path DEFAULT_CHARACTER_IMAGE = ResourcePath.of("images", "character.png");
+    private static final Path ROTATE_CHARACTER_IMAGE_1 = ResourcePath.of("images", "character-rotate-1.png");
+    private static final Path ROTATE_CHARACTER_IMAGE_2 = ResourcePath.of("images", "character-rotate-2.png");
+    private static final Path ROTATE_CHARACTER_IMAGE_3 = ResourcePath.of("images", "character-rotate-3.png");
     private static final double PANE_WIDTH = 480;
     private static final double PANE_HEIGHT = 1080;
     private static final double CHARACTER_SIZE = 1080;

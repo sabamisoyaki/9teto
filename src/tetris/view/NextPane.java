@@ -2,7 +2,7 @@ package tetris.view;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import tetris.ResourcePath;
 
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -12,7 +12,7 @@ import javafx.scene.layout.StackPane;
 
 public class NextPane extends StackPane {
 
-    private static final Path DEFAULT_BACKGROUND_IMAGE = Paths.get("images", "next-bg.png");
+    private static final Path DEFAULT_BACKGROUND_IMAGE = ResourcePath.of("images", "next-bg.png");
 
     private final Canvas nextCanvas;
     private final int nextCellSize;

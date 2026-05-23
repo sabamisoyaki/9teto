@@ -2,7 +2,6 @@ package tetris;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -40,12 +39,12 @@ public class Main extends Application {
     private Stage primaryStage;
     private static final int WINDOW_WIDTH = 1920;
     private static final int WINDOW_HEIGHT = 1080;
-    private static final Path BGM_PATH = Path.of("audio", "bgm.wav");
+    private static final Path BGM_PATH = ResourcePath.of("audio", "bgm.wav");
     private static final long AUTO_FALL_INTERVAL_NANOS = 300_000_000L;
     private MediaPlayer bgmPlayer;
 
-    private static final Path MAIN_BACKGROUND_IMAGE = Paths.get("images", "base-layer-1920x1080.png");
-    private static final Path END_CREDIT_BACKGROUND_IMAGE = Paths.get("images", "end-credit-bg.png");
+    private static final Path MAIN_BACKGROUND_IMAGE = ResourcePath.of("images", "base-layer-1920x1080.png");
+    private static final Path END_CREDIT_BACKGROUND_IMAGE = ResourcePath.of("images", "end-credit-bg.png");
 
     private static final String DEFAULT_END_CREDIT_JSON = """
             {
