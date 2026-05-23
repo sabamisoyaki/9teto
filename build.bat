@@ -61,7 +61,7 @@ del sources.txt
 
 echo [3/3] Creating app.jar...
 cd out
-"%JAVA_BIN%\jar.exe" --create --file ..\app.jar --main-class tetris.Main -C . .
+"%JAVA_BIN%\jar.exe" --create --file ..\app.jar --main-class tetris.Launcher -C . .
 if errorlevel 1 (
     echo [ERROR] Failed to create app.jar!
     cd ..
