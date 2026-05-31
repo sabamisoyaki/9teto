@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
@@ -11,6 +12,7 @@ import java.util.Set;
 import javafx.scene.input.KeyCode;
 
 import tetris.model.Board;
+import tetris.model.SeEvent;
 import tetris.model.ShapeType;
 import tetris.model.Tetromino;
 
@@ -175,6 +177,7 @@ public class GameController {
         if (board.canMove(current, 0, -1)) {
             current.setCol(current.getCol() - 1);
             resetGroundIfLifted();
+            frameEvents.add(SeEvent.MOVE);
         }
     }
 
@@ -182,6 +185,7 @@ public class GameController {
         if (board.canMove(current, 0, 1)) {
             current.setCol(current.getCol() + 1);
             resetGroundIfLifted();
+            frameEvents.add(SeEvent.MOVE);
         }
     }
 
@@ -199,6 +203,7 @@ public class GameController {
         while (board.canMoveDown(current)) {
             current.setRow(current.getRow() + 1);
         }
+        frameEvents.add(SeEvent.HARD_DROP);
         lockPiece();
     }
 
@@ -312,6 +317,18 @@ public class GameController {
     // ==================================================
     //              ロジック・ロック処理
     // ==================================================
+    // ==========================
+    //   フレームイベント
+    // ==========================
+    private final EnumSet<SeEvent> frameEvents = EnumSet.noneOf(SeEvent.class);
+
+    public Set<SeEvent> drainEvents() {
+        if (frameEvents.isEmpty()) return Collections.emptySet();
+        Set<SeEvent> snapshot = EnumSet.copyOf(frameEvents);
+        frameEvents.clear();
+        return snapshot;
+    }
+
     private boolean trueGameOver = false;
 
     public boolean isTrueGameOver() {
@@ -333,6 +350,7 @@ public class GameController {
         if (cleared > 0) {
             totalLines += cleared;
             addScore(cleared);
+            frameEvents.add(SeEvent.LINE_CLEAR);
         }
 
         // ライン閾値による「盤面回転」
@@ -366,6 +384,7 @@ public class GameController {
         groundStartTime = 0;
         placedMinoCount++;
         System.out.println(placedMinoCount);
+        frameEvents.add(SeEvent.LOCK);
     }
 
     private void rotateWorldAndCount() {
@@ -440,6 +459,7 @@ public class GameController {
                 t.setRotation(newRot);
 
                 resetGroundIfLifted();
+                frameEvents.add(SeEvent.ROTATE);
                 return;
             }
         }

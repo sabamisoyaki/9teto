@@ -1,16 +1,18 @@
 package tetris.model;
 
+import javafx.scene.paint.Color;
+
 public class Board {
 
     public static final int ROWS = 25;
     public static final int COLS = 25;
 
-    private int[][] board = new int[ROWS][COLS];
+    private Color[][] board = new Color[ROWS][COLS];
     private int totalClearedLines = 0;
 
     public Board() {}
 
-    public int getCell(int r, int c) {
+    public Color getColor(int r, int c) {
         return board[r][c];
     }
 
@@ -41,7 +43,7 @@ public class Board {
                     if (newR >= ROWS) {
                         return false;
                     }
-                    if (newR >= 0 && board[newR][newC] != 0) {
+                    if (newR >= 0 && board[newR][newC] != null) {
                         return false;
                     }
                 }
@@ -62,7 +64,7 @@ public class Board {
                 if (t.getShape()[r][c] == 1) {
                     int br = t.getRow() + r;
                     int bc = t.getCol() + c;
-                    board[br][bc] = 1;
+                    board[br][bc] = t.getColor();
                 }
             }
         }
@@ -71,11 +73,11 @@ public class Board {
     /** 固定ブロック全体を90°回転させる（右回転） */
     public void rotateClockwise() {
 
-        int[][] rotated = new int[ROWS][COLS];
+        Color[][] rotated = new Color[ROWS][COLS];
 
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
-                if (board[r][c] != 0) {
+                if (board[r][c] != null) {
                     rotated[c][(ROWS - 1) - r] = board[r][c];
                 }
             }
@@ -84,12 +86,12 @@ public class Board {
         // CW回転後、右端の列(col=24)は元のrow0（スポーン行＝常に空）に対応するため必ず空になる。
         // 全体を1列右シフトして空き列を左端に移すことで右端の隙間をなくす。
         // col24（元row0の内容＝常に0）は切り捨てられるがデータ損失はない。
-        board = new int[ROWS][COLS];
+        board = new Color[ROWS][COLS];
         for (int r = 0; r < ROWS; r++) {
             for (int c = 1; c < COLS; c++) {
                 board[r][c] = rotated[r][c - 1];
             }
-            // board[r][0] = 0（デフォルト初期化済み）
+            // board[r][0] = null（デフォルト初期化済み）
         }
 
         System.out.println("==== WORLD ROTATED ====");
@@ -98,7 +100,7 @@ public class Board {
     // --- ライン消去 ---
     private boolean isLineFull(int row) {
         for (int c = 0; c < COLS; c++) {
-            if (board[row][c] == 0) {
+            if (board[row][c] == null) {
                 return false;
             }
         }
@@ -110,7 +112,7 @@ public class Board {
             System.arraycopy(board[r - 1], 0, board[r], 0, COLS);
         }
         for (int c = 0; c < COLS; c++) {
-            board[0][c] = 0;
+            board[0][c] = null;
         }
     }
 
@@ -138,7 +140,7 @@ public class Board {
                         return false;
                     }
 
-                    if (br >= 0 && board[br][bc] != 0) {
+                    if (br >= 0 && board[br][bc] != null) {
                         return false;
                     }
                 }

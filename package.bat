@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "PATH=%SystemRoot%\System32;%PATH%"
 cd /d "%~dp0"
 
 echo ========================================

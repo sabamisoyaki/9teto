@@ -1,6 +1,6 @@
 package tetris;
 
-import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -11,14 +11,23 @@ public final class ResourcePath {
 
     private static Path resolveBase() {
         try {
-            URI uri = ResourcePath.class.getProtectionDomain().getCodeSource().getLocation().toURI();
-            Path dir = Paths.get(uri).getParent();
-            if (dir != null && Files.isDirectory(dir)) {
-                return dir;
+            var cs = ResourcePath.class.getProtectionDomain().getCodeSource();
+            if (cs == null) return Paths.get(System.getProperty("user.dir", "."));
+            var location = cs.getLocation();
+            if (location == null) return Paths.get(System.getProperty("user.dir", "."));
+
+            Path loc = Paths.get(location.toURI());
+            // jarから実行中（パッケージ版）: jarの隣にimages/audio/が置かれる
+            if (!Files.isDirectory(loc)) {
+                Path dir = loc.getParent();
+                if (dir != null && Files.isDirectory(dir)) {
+                    return dir;
+                }
             }
-        } catch (Exception ignored) {
+        } catch (URISyntaxException | SecurityException | IllegalArgumentException ignored) {
         }
-        return Paths.get(".");
+        // クラスファイル直接実行中（IDEデバッグ）: cwd=プロジェクトルートを使う
+        return Paths.get(System.getProperty("user.dir", "."));
     }
 
     public static Path of(String first, String... more) {
