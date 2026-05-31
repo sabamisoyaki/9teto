@@ -2,7 +2,7 @@ package tetris.view;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import tetris.ResourcePath;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -17,7 +17,7 @@ import javafx.scene.layout.VBox;
 
 public class HudPane extends VBox {
 
-    private static final Path DEFAULT_BACKGROUND_IMAGE = Paths.get("images", "hud-bg.png");
+    private static final Path DEFAULT_BACKGROUND_IMAGE = ResourcePath.of("images", "hud-bg.png");
 
     private final Label scoreLabel;
     private final Label linesLabel;
@@ -73,7 +73,6 @@ public class HudPane extends VBox {
 
     private void applyBackgroundImage(Path imagePath) {
         if (imagePath == null || !Files.exists(imagePath)) {
-            setBackground(null);
             return;
         }
 

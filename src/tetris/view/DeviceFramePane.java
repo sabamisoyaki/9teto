@@ -2,7 +2,7 @@ package tetris.view;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import tetris.ResourcePath;
 
 import javafx.scene.canvas.Canvas;
 import javafx.scene.image.Image;
@@ -13,7 +13,7 @@ import javafx.scene.shape.Rectangle;
 
 public class DeviceFramePane extends Pane {
 
-    private static final Path DEFAULT_BACKGROUND_IMAGE = Paths.get("images", "playfield-bg.png");
+    private static final Path DEFAULT_BACKGROUND_IMAGE = ResourcePath.of("images", "playfield-bg.png");
 
     private final Canvas playfieldCanvas;
     private final ImageView backgroundView;

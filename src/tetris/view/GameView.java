@@ -2,7 +2,7 @@ package tetris.view;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import tetris.ResourcePath;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -18,7 +18,7 @@ import javafx.scene.layout.VBox;
 
 public class GameView {
 
-    private static final Path DEFAULT_BACKGROUND_IMAGE = Paths.get("images", "base-layer-1920x1080.png");
+    private static final Path DEFAULT_BACKGROUND_IMAGE = ResourcePath.of("images", "base-layer-1920x1080.png");
 
     private static final double WINDOW_WIDTH  = 1920;
     private static final double WINDOW_HEIGHT = 1080;

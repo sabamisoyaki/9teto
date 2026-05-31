@@ -2,7 +2,6 @@ package tetris;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -27,8 +26,12 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import tetris.SePlayer;
 import tetris.controller.GameController;
 import tetris.model.Board;
+import tetris.model.GameConfig;
+import tetris.model.SeEvent;
+import tetris.view.ConfigPane;
 import tetris.view.EndCreditPane;
 import tetris.view.GameView;
 import tetris.view.HudPane;
@@ -40,12 +43,16 @@ public class Main extends Application {
     private Stage primaryStage;
     private static final int WINDOW_WIDTH = 1920;
     private static final int WINDOW_HEIGHT = 1080;
-    private static final Path BGM_PATH = Path.of("audio", "bgm.wav");
+    private static final Path BGM_PATH = ResourcePath.of("audio", "bgm.wav");
     private static final long AUTO_FALL_INTERVAL_NANOS = 300_000_000L;
+    private static final double BGM_MAX_VOLUME = 0.35;
     private MediaPlayer bgmPlayer;
+    private final GameConfig config = new GameConfig();
 
-    private static final Path MAIN_BACKGROUND_IMAGE = Paths.get("images", "base-layer-1920x1080.png");
-    private static final Path END_CREDIT_BACKGROUND_IMAGE = Paths.get("images", "end-credit-bg.png");
+    private static final Path MAIN_BACKGROUND_IMAGE = ResourcePath.of("images", "base-layer-1920x1080.png");
+    private static final Path END_CREDIT_BACKGROUND_IMAGE = ResourcePath.of("images", "end-credit-bg.png");
+    private static final Path START_BACKGROUND_IMAGE = ResourcePath.of("images", "start-bg.png");
+    private static final Path GAME_OVER_BACKGROUND_IMAGE = ResourcePath.of("images", "game-over-bg.png");
 
     private static final String DEFAULT_END_CREDIT_JSON = """
             {
@@ -78,7 +85,7 @@ public class Main extends Application {
             Media media = new Media(BGM_PATH.toUri().toString());
             bgmPlayer = new MediaPlayer(media);
             bgmPlayer.setCycleCount(MediaPlayer.INDEFINITE);
-            bgmPlayer.setVolume(0.35);
+            bgmPlayer.setVolume(config.getBgmVolume() * BGM_MAX_VOLUME);
         } catch (Exception e) {
             System.out.println("[BGM] Failed to load: " + e.getMessage());
             bgmPlayer = null;
@@ -86,9 +93,10 @@ public class Main extends Application {
     }
 
     private void playBgm() {
-        if (bgmPlayer == null) {
+        if (bgmPlayer == null || !config.isBgmEnabled()) {
             return;
         }
+        bgmPlayer.setVolume(config.getBgmVolume() * BGM_MAX_VOLUME);
         if (bgmPlayer.getStatus() != MediaPlayer.Status.PLAYING) {
             bgmPlayer.play();
         }
@@ -107,7 +115,8 @@ public class Main extends Application {
     // =====================================================
     private Scene makeStartScene() {
         StackPane root = new StackPane();
-        applyBackgroundImage(root, MAIN_BACKGROUND_IMAGE, true);
+        Path bgPath = Files.exists(START_BACKGROUND_IMAGE) ? START_BACKGROUND_IMAGE : MAIN_BACKGROUND_IMAGE;
+        applyBackgroundImage(root, bgPath, true);
 
         Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(10, 15, 20, 0.6));
 
@@ -127,7 +136,10 @@ public class Main extends Application {
         fade.setAutoReverse(true);
         fade.play();
 
-        content.getChildren().addAll(title, sub);
+        Label configHint = new Label("C  Config");
+        configHint.setStyle("-fx-font-size: 20px; -fx-text-fill: #6688aa; -fx-font-family: 'Courier New';");
+
+        content.getChildren().addAll(title, sub, configHint);
         root.getChildren().addAll(overlay, content);
 
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -135,6 +147,8 @@ public class Main extends Application {
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.SPACE) {
                 showGameScene();
+            } else if (e.getCode() == KeyCode.C) {
+                showConfigScene();
             }
         });
 
@@ -144,6 +158,31 @@ public class Main extends Application {
     private void showStartScene() {
         stopBgm();
         primaryStage.setScene(makeStartScene());
+    }
+
+    // =====================================================
+    //  コンフィグ画面
+    // =====================================================
+    private Scene makeConfigScene() {
+        ConfigPane pane = new ConfigPane(
+            config,
+            v -> { if (bgmPlayer != null) bgmPlayer.setVolume(v * BGM_MAX_VOLUME); },
+            v -> { /* SE未実装 */ },
+            b -> { if (bgmPlayer != null) bgmPlayer.setVolume(b ? config.getBgmVolume() * BGM_MAX_VOLUME : 0.0); },
+            b -> { /* SE未実装 */ }
+        );
+
+        Scene scene = new Scene(pane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
+        scene.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ESCAPE) {
+                showStartScene();
+            }
+        });
+        return scene;
+    }
+
+    private void showConfigScene() {
+        primaryStage.setScene(makeConfigScene());
     }
 
     // =====================================================
@@ -181,6 +220,8 @@ public class Main extends Application {
                 0,
                 0);
 
+        SePlayer sePlayer = new SePlayer(config);
+
         AnimationTimer timer = new GameLoopTimer(
                 controller,
                 view,
@@ -188,6 +229,7 @@ public class Main extends Application {
                 nextPane,
                 hudPane,
                 keys,
+                sePlayer,
                 AUTO_FALL_INTERVAL_NANOS,
                 (finalScore, finalLines) -> showEndCreditScene(
                         DEFAULT_END_CREDIT_JSON,
@@ -207,7 +249,8 @@ public class Main extends Application {
     // =====================================================
     private Scene makeGameOverScene(int score, int lines) {
         StackPane root = new StackPane();
-        applyBackgroundImage(root, MAIN_BACKGROUND_IMAGE, true);
+        Path bgPath = Files.exists(GAME_OVER_BACKGROUND_IMAGE) ? GAME_OVER_BACKGROUND_IMAGE : MAIN_BACKGROUND_IMAGE;
+        applyBackgroundImage(root, bgPath, true);
 
         Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(30, 0, 10, 0.7));
 
@@ -320,6 +363,7 @@ final class GameLoopTimer extends AnimationTimer {
     private final NextPane nextPane;
     private final HudPane hudPane;
     private final Set<KeyCode> keys;
+    private final SePlayer sePlayer;
     private final long autoFallIntervalNanos;
     private final BiConsumer<Integer, Integer> gameOverHandler;
 
@@ -333,6 +377,7 @@ final class GameLoopTimer extends AnimationTimer {
             NextPane nextPane,
             HudPane hudPane,
             Set<KeyCode> keys,
+            SePlayer sePlayer,
             long autoFallIntervalNanos,
             BiConsumer<Integer, Integer> gameOverHandler) {
         this.controller = controller;
@@ -341,6 +386,7 @@ final class GameLoopTimer extends AnimationTimer {
         this.nextPane = nextPane;
         this.hudPane = hudPane;
         this.keys = keys;
+        this.sePlayer = sePlayer;
         this.autoFallIntervalNanos = autoFallIntervalNanos;
         this.gameOverHandler = gameOverHandler;
     }
@@ -354,6 +400,10 @@ final class GameLoopTimer extends AnimationTimer {
         }
 
         controller.updateInput(keys, now);
+
+        for (SeEvent e : controller.drainEvents()) {
+            sePlayer.play(e);
+        }
 
         if (now - lastFall > autoFallIntervalNanos) {
             controller.softDrop();

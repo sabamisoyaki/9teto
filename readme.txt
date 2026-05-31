@@ -1,20 +1,27 @@
 9pazzle Tetris
+==============
 
-Prerequisites
-- Java JDK 17+ installed (JAVA_HOME or java on PATH)
-- JavaFX SDK extracted to:
-  openjfx-25.0.1_windows-x64_bin-sdk\javafx-sdk-25.0.1
+How to run (development)
+--------------------------
+Prerequisites:
+  - JDK 25+ (Eclipse Adoptium recommended)
+  - JavaFX SDK 25.0.1 extracted to:
+      openjfx-25.0.1_windows-x64_bin-sdk\javafx-sdk-25.0.1
 
-How to run (Windows)
-1. Install a JDK and set JAVA_HOME, or ensure java.exe is available on PATH.
-2. Download JavaFX SDK 25.0.1 and extract it to the path above.
-3. Double-click run.vbs or run.bat.
+Steps:
+  1. Double-click build.bat to compile and create app.jar
+  2. Double-click run.bat (or run.vbs for silent launch) to start the game
 
-Notes
-- run.bat auto-detects Java from JAVA_HOME or PATH.
-- If the JavaFX SDK path is different, update the FX path in run.bat.
+How to build a standalone exe
+------------------------------
+Run package.bat — no arguments needed.
+
+  Output: dist\Tetris\Tetris.exe
+
+The dist\Tetris\ folder contains a bundled JRE and all assets.
+Share the entire folder; no Java installation required on the target machine.
 
 BGM (optional)
-- Place an MP3 file at: audio\bgm.mp3
-- The game will loop this file during gameplay.
-- If the file is missing, the game runs silently.
+---------------
+Place audio\bgm.wav in the project root.
+The game loops it during gameplay. Runs silently if the file is missing.
