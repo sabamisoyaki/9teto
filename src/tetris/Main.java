@@ -10,9 +10,7 @@ import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
-import javafx.animation.ParallelTransition;
 import javafx.animation.RotateTransition;
-import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.geometry.Pos;
@@ -21,10 +19,10 @@ import javafx.scene.control.Label;
 import javafx.scene.effect.GaussianBlur;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.canvas.Canvas;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.canvas.Canvas;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.paint.Color;
@@ -36,8 +34,8 @@ import tetris.controller.GameController;
 import tetris.model.Board;
 import tetris.model.GameConfig;
 import tetris.model.SeEvent;
-import tetris.view.ConfigPane;
 import tetris.view.EndCreditPane;
+import tetris.view.ConfigPane;
 import tetris.view.GameView;
 import tetris.view.HudPane;
 import tetris.view.NextPane;
@@ -302,6 +300,7 @@ public class Main extends Application {
         return scene;
     }
 
+
     private void showGameOverScene(int score, int lines) {
         stopBgm();
         primaryStage.setScene(makeGameOverScene(score, lines));
@@ -374,7 +373,7 @@ final class GameLoopTimer extends AnimationTimer {
 
     private long lastFall = 0;
     private int lastWorldRotateStep = -1;
-    private boolean isAnimating = false;
+    private RotateTransition currentSpinAnim = null;
 
     GameLoopTimer(
             GameController controller,
@@ -407,13 +406,16 @@ final class GameLoopTimer extends AnimationTimer {
 
         controller.updateInput(keys, now);
 
-        for (SeEvent e : controller.drainEvents()) {
-            sePlayer.play(e);
-        }
-
         if (now - lastFall > autoFallIntervalNanos) {
             controller.softDrop();
             lastFall = now;
+        }
+
+        for (SeEvent e : controller.drainEvents()) {
+            sePlayer.play(e);
+            if (e == SeEvent.WORLD_ROTATE) {
+                triggerBoardSpinAnimation();
+            }
         }
 
         renderer.drawAll(
@@ -439,39 +441,21 @@ final class GameLoopTimer extends AnimationTimer {
         if (worldRotateStep != lastWorldRotateStep) {
             view.getCharacterPane().updateCharacterForWorldRotateStep(worldRotateStep);
             lastWorldRotateStep = worldRotateStep;
-            if (!isAnimating) {
-                startRotationAnimation();
-            }
         }
     }
 
-    private void startRotationAnimation() {
-        isAnimating = true;
-        Canvas canvas = view.getPlayFieldPane().getPlayfieldCanvas();
-
-        // 盤面データは既に90°回転済み — canvas を -90° から 0° へ戻すことで
-        // 「世界がスピンして新しい向きに落ち着く」ように見せる
-        canvas.setRotate(-90);
-
-        RotateTransition rotate = new RotateTransition(Duration.millis(420), canvas);
-        rotate.setFromAngle(-90);
-        rotate.setToAngle(0);
-        rotate.setInterpolator(Interpolator.EASE_OUT);
-
-        ScaleTransition scale = new ScaleTransition(Duration.millis(420), canvas);
-        scale.setFromX(0.88);
-        scale.setFromY(0.88);
-        scale.setToX(1.0);
-        scale.setToY(1.0);
-        scale.setInterpolator(Interpolator.EASE_OUT);
-
-        ParallelTransition anim = new ParallelTransition(rotate, scale);
-        anim.setOnFinished(e -> {
-            canvas.setRotate(0);
-            canvas.setScaleX(1.0);
-            canvas.setScaleY(1.0);
-            isAnimating = false;
-        });
-        anim.play();
+    private void triggerBoardSpinAnimation() {
+        if (currentSpinAnim != null
+                && currentSpinAnim.getStatus() == Animation.Status.RUNNING) {
+            currentSpinAnim.stop();
+            view.getPlayFieldPane().setRotate(0);
+        }
+        RotateTransition rt = new RotateTransition(
+                Duration.millis(400), view.getPlayFieldPane());
+        rt.setByAngle(360);
+        rt.setInterpolator(Interpolator.EASE_BOTH);
+        rt.setCycleCount(1);
+        rt.play();
+        currentSpinAnim = rt;
     }
 }
