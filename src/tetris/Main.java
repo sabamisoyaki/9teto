@@ -9,6 +9,10 @@ import java.util.function.BiConsumer;
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
+import javafx.animation.Interpolator;
+import javafx.animation.ParallelTransition;
+import javafx.animation.RotateTransition;
+import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.geometry.Pos;
@@ -20,6 +24,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.canvas.Canvas;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.paint.Color;
@@ -369,6 +374,7 @@ final class GameLoopTimer extends AnimationTimer {
 
     private long lastFall = 0;
     private int lastWorldRotateStep = -1;
+    private boolean isAnimating = false;
 
     GameLoopTimer(
             GameController controller,
@@ -433,6 +439,39 @@ final class GameLoopTimer extends AnimationTimer {
         if (worldRotateStep != lastWorldRotateStep) {
             view.getCharacterPane().updateCharacterForWorldRotateStep(worldRotateStep);
             lastWorldRotateStep = worldRotateStep;
+            if (!isAnimating) {
+                startRotationAnimation();
+            }
         }
+    }
+
+    private void startRotationAnimation() {
+        isAnimating = true;
+        Canvas canvas = view.getPlayFieldPane().getPlayfieldCanvas();
+
+        // 盤面データは既に90°回転済み — canvas を -90° から 0° へ戻すことで
+        // 「世界がスピンして新しい向きに落ち着く」ように見せる
+        canvas.setRotate(-90);
+
+        RotateTransition rotate = new RotateTransition(Duration.millis(420), canvas);
+        rotate.setFromAngle(-90);
+        rotate.setToAngle(0);
+        rotate.setInterpolator(Interpolator.EASE_OUT);
+
+        ScaleTransition scale = new ScaleTransition(Duration.millis(420), canvas);
+        scale.setFromX(0.88);
+        scale.setFromY(0.88);
+        scale.setToX(1.0);
+        scale.setToY(1.0);
+        scale.setInterpolator(Interpolator.EASE_OUT);
+
+        ParallelTransition anim = new ParallelTransition(rotate, scale);
+        anim.setOnFinished(e -> {
+            canvas.setRotate(0);
+            canvas.setScaleX(1.0);
+            canvas.setScaleY(1.0);
+            isAnimating = false;
+        });
+        anim.play();
     }
 }
