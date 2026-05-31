@@ -9,6 +9,8 @@ import java.util.function.BiConsumer;
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
+import javafx.animation.Interpolator;
+import javafx.animation.RotateTransition;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.geometry.Pos;
@@ -17,6 +19,7 @@ import javafx.scene.control.Label;
 import javafx.scene.effect.GaussianBlur;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.canvas.Canvas;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -31,8 +34,8 @@ import tetris.controller.GameController;
 import tetris.model.Board;
 import tetris.model.GameConfig;
 import tetris.model.SeEvent;
-import tetris.view.ConfigPane;
 import tetris.view.EndCreditPane;
+import tetris.view.ConfigPane;
 import tetris.view.GameView;
 import tetris.view.HudPane;
 import tetris.view.NextPane;
@@ -297,6 +300,7 @@ public class Main extends Application {
         return scene;
     }
 
+
     private void showGameOverScene(int score, int lines) {
         stopBgm();
         primaryStage.setScene(makeGameOverScene(score, lines));
@@ -369,6 +373,7 @@ final class GameLoopTimer extends AnimationTimer {
 
     private long lastFall = 0;
     private int lastWorldRotateStep = -1;
+    private RotateTransition currentSpinAnim = null;
 
     GameLoopTimer(
             GameController controller,
@@ -401,13 +406,16 @@ final class GameLoopTimer extends AnimationTimer {
 
         controller.updateInput(keys, now);
 
-        for (SeEvent e : controller.drainEvents()) {
-            sePlayer.play(e);
-        }
-
         if (now - lastFall > autoFallIntervalNanos) {
             controller.softDrop();
             lastFall = now;
+        }
+
+        for (SeEvent e : controller.drainEvents()) {
+            sePlayer.play(e);
+            if (e == SeEvent.WORLD_ROTATE) {
+                triggerBoardSpinAnimation();
+            }
         }
 
         renderer.drawAll(
@@ -434,5 +442,20 @@ final class GameLoopTimer extends AnimationTimer {
             view.getCharacterPane().updateCharacterForWorldRotateStep(worldRotateStep);
             lastWorldRotateStep = worldRotateStep;
         }
+    }
+
+    private void triggerBoardSpinAnimation() {
+        if (currentSpinAnim != null
+                && currentSpinAnim.getStatus() == Animation.Status.RUNNING) {
+            currentSpinAnim.stop();
+            view.getPlayFieldPane().setRotate(0);
+        }
+        RotateTransition rt = new RotateTransition(
+                Duration.millis(400), view.getPlayFieldPane());
+        rt.setByAngle(360);
+        rt.setInterpolator(Interpolator.EASE_BOTH);
+        rt.setCycleCount(1);
+        rt.play();
+        currentSpinAnim = rt;
     }
 }
