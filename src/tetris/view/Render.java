@@ -72,12 +72,8 @@ public class Render {
     public void drawBoard(GraphicsContext gc, Board board) {
         for (int r = 0; r < Board.ROWS; r++) {
             for (int c = 0; c < Board.COLS; c++) {
-
-                if (board.getCell(r, c) == 0)
-                    gc.setFill(Color.BLACK);
-                else
-                    gc.setFill(Color.RED);
-
+                Color color = board.getColor(r, c);
+                gc.setFill(color != null ? color : Color.BLACK);
                 gc.fillRect(
                     c * cellSize,
                     r * cellSize,

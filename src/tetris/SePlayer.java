@@ -16,6 +16,7 @@ public class SePlayer {
 
     public SePlayer(GameConfig config) {
         this.config = config;
+        SeGenerator.generateMissingSeFiles();
         load(SeEvent.MOVE,       "se_move.wav");
         load(SeEvent.ROTATE,     "se_rotate.wav");
         load(SeEvent.HARD_DROP,  "se_harddrop.wav");

@@ -51,6 +51,8 @@ public class Main extends Application {
 
     private static final Path MAIN_BACKGROUND_IMAGE = ResourcePath.of("images", "base-layer-1920x1080.png");
     private static final Path END_CREDIT_BACKGROUND_IMAGE = ResourcePath.of("images", "end-credit-bg.png");
+    private static final Path START_BACKGROUND_IMAGE = ResourcePath.of("images", "start-bg.png");
+    private static final Path GAME_OVER_BACKGROUND_IMAGE = ResourcePath.of("images", "game-over-bg.png");
 
     private static final String DEFAULT_END_CREDIT_JSON = """
             {
@@ -113,7 +115,8 @@ public class Main extends Application {
     // =====================================================
     private Scene makeStartScene() {
         StackPane root = new StackPane();
-        applyBackgroundImage(root, MAIN_BACKGROUND_IMAGE, true);
+        Path bgPath = Files.exists(START_BACKGROUND_IMAGE) ? START_BACKGROUND_IMAGE : MAIN_BACKGROUND_IMAGE;
+        applyBackgroundImage(root, bgPath, true);
 
         Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(10, 15, 20, 0.6));
 
@@ -246,7 +249,8 @@ public class Main extends Application {
     // =====================================================
     private Scene makeGameOverScene(int score, int lines) {
         StackPane root = new StackPane();
-        applyBackgroundImage(root, MAIN_BACKGROUND_IMAGE, true);
+        Path bgPath = Files.exists(GAME_OVER_BACKGROUND_IMAGE) ? GAME_OVER_BACKGROUND_IMAGE : MAIN_BACKGROUND_IMAGE;
+        applyBackgroundImage(root, bgPath, true);
 
         Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(30, 0, 10, 0.7));
 

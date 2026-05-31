@@ -73,7 +73,6 @@ public class HudPane extends VBox {
 
     private void applyBackgroundImage(Path imagePath) {
         if (imagePath == null || !Files.exists(imagePath)) {
-            setBackground(null);
             return;
         }
 

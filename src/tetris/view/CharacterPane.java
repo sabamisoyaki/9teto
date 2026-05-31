@@ -7,6 +7,11 @@ import tetris.ResourcePath;
 import javafx.geometry.Pos;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundImage;
+import javafx.scene.layout.BackgroundPosition;
+import javafx.scene.layout.BackgroundRepeat;
+import javafx.scene.layout.BackgroundSize;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
 
@@ -16,6 +21,7 @@ public class CharacterPane extends StackPane {
     private static final Path ROTATE_CHARACTER_IMAGE_1 = ResourcePath.of("images", "character-rotate-1.png");
     private static final Path ROTATE_CHARACTER_IMAGE_2 = ResourcePath.of("images", "character-rotate-2.png");
     private static final Path ROTATE_CHARACTER_IMAGE_3 = ResourcePath.of("images", "character-rotate-3.png");
+    private static final Path CHARACTER_BG_IMAGE = ResourcePath.of("images", "character-bg.png");
     private static final double PANE_WIDTH = 480;
     private static final double PANE_HEIGHT = 1080;
     private static final double CHARACTER_SIZE = 1080;
@@ -39,6 +45,7 @@ public class CharacterPane extends StackPane {
         StackPane.setAlignment(characterView, Pos.BOTTOM_RIGHT);
 
         applyCharacterImage(DEFAULT_CHARACTER_IMAGE);
+        applyBackgroundImage(CHARACTER_BG_IMAGE);
     }
 
     public ImageView getCharacterView() {
@@ -77,5 +84,21 @@ public class CharacterPane extends StackPane {
 
         Image image = new Image(imagePath.toUri().toString());
         characterView.setImage(image);
+    }
+
+    private void applyBackgroundImage(Path imagePath) {
+        if (imagePath == null || !Files.exists(imagePath)) {
+            return;
+        }
+
+        Image image = new Image(imagePath.toUri().toString());
+        BackgroundSize size = new BackgroundSize(100, 100, true, true, false, true);
+        BackgroundImage backgroundImage = new BackgroundImage(
+                image,
+                BackgroundRepeat.NO_REPEAT,
+                BackgroundRepeat.NO_REPEAT,
+                BackgroundPosition.CENTER,
+                size);
+        setBackground(new Background(backgroundImage));
     }
 }
