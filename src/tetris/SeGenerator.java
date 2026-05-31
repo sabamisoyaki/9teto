@@ -19,7 +19,8 @@ public final class SeGenerator {
             checkAndGenerate(audioDir.resolve("se_rotate.wav"), SeType.ROTATE);
             checkAndGenerate(audioDir.resolve("se_harddrop.wav"), SeType.HARD_DROP);
             checkAndGenerate(audioDir.resolve("se_lock.wav"), SeType.LOCK);
-            checkAndGenerate(audioDir.resolve("se_clear.wav"), SeType.CLEAR);
+            checkAndGenerate(audioDir.resolve("se_clear.wav"),        SeType.CLEAR);
+            checkAndGenerate(audioDir.resolve("se_world_rotate.wav"), SeType.WORLD_ROTATE);
         } catch (IOException e) {
             System.err.println("[SE Generator] Failed to create directories or write files: " + e.getMessage());
         }
@@ -39,7 +40,7 @@ public final class SeGenerator {
     }
 
     private enum SeType {
-        MOVE, ROTATE, HARD_DROP, LOCK, CLEAR
+        MOVE, ROTATE, HARD_DROP, LOCK, CLEAR, WORLD_ROTATE
     }
 
     private static byte[] generateWavData(SeType type) {
@@ -49,6 +50,7 @@ public final class SeGenerator {
             case HARD_DROP -> 0.15;
             case LOCK -> 0.15;
             case CLEAR -> 0.45;
+            case WORLD_ROTATE -> 0.08;
         };
 
         int numSamples = (int) (SAMPLE_RATE * duration);
@@ -84,6 +86,12 @@ public final class SeGenerator {
                     // Add a tiny bit of noise for texture
                     double noise = Math.random() * 2.0 - 1.0;
                     sampleValue = (Math.sin(2 * Math.PI * freq * t) * 0.8 + noise * 0.2) * env;
+                }
+                case WORLD_ROTATE -> {
+                    // テスト用: ROTATE と同じ波形で代替
+                    double freq = 500 + Math.sin(t / duration * Math.PI * 4) * 200 + (t / duration) * 300;
+                    double env = Math.sin(t / duration * Math.PI);
+                    sampleValue = Math.sin(2 * Math.PI * freq * t) * env;
                 }
                 case CLEAR -> {
                     // Beautiful sparkling C major arpeggio sweep (C5 -> E5 -> G5 -> C6)

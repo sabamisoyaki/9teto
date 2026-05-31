@@ -394,6 +394,7 @@ public class GameController {
         if (worldRotateStep == 1 && worldRotateCount >= 4) {
             worldRotateLoopCount++;
         }
+        frameEvents.add(SeEvent.WORLD_ROTATE);
     }
 
 
