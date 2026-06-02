@@ -1,5 +1,8 @@
 package tetris.model;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import javafx.scene.paint.Color;
 
 public class Board {
@@ -9,6 +12,9 @@ public class Board {
 
     private Color[][] board = new Color[ROWS][COLS];
     private int totalClearedLines = 0;
+
+    private final List<Integer> lastClearedRows = new ArrayList<>();
+    private final List<Color[]> lastClearedColors = new ArrayList<>();
 
     public Board() {}
 
@@ -64,6 +70,7 @@ public class Board {
                 if (t.getShape()[r][c] == 1) {
                     int br = t.getRow() + r;
                     int bc = t.getCol() + c;
+                    if (br < 0 || br >= ROWS || bc < 0 || bc >= COLS) continue;
                     board[br][bc] = t.getColor();
                 }
             }
@@ -117,9 +124,13 @@ public class Board {
     }
 
     public int clearCompletedLines() {
+        lastClearedRows.clear();
+        lastClearedColors.clear();
         int count = 0;
         for (int r = ROWS - 1; r >= 0; r--) {
             if (isLineFull(r)) {
+                lastClearedRows.add(r);
+                lastClearedColors.add(Arrays.copyOf(board[r], COLS));
                 clearLine(r);
                 count++;
                 r++;
@@ -127,6 +138,13 @@ public class Board {
         }
         totalClearedLines += count;
         return count;
+    }
+
+    public void pollLastClearedLines(List<Integer> outRows, List<Color[]> outColors) {
+        outRows.addAll(lastClearedRows);
+        outColors.addAll(lastClearedColors);
+        lastClearedRows.clear();
+        lastClearedColors.clear();
     }
 
     public boolean canPlace(int[][] shape, int row, int col) {
