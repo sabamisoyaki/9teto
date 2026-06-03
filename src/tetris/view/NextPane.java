@@ -2,13 +2,13 @@ package tetris.view;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import tetris.ResourcePath;
 
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
+import tetris.ResourcePath;
 
 public class NextPane extends StackPane {
 

@@ -2,7 +2,11 @@ package tetris;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -39,6 +43,7 @@ import tetris.view.ConfigPane;
 import tetris.view.GameView;
 import tetris.view.HudPane;
 import tetris.view.NextPane;
+import tetris.view.Particle;
 import tetris.view.Render;
 
 public class Main extends Application {
@@ -374,6 +379,8 @@ final class GameLoopTimer extends AnimationTimer {
     private long lastFall = 0;
     private int lastWorldRotateStep = -1;
     private RotateTransition currentSpinAnim = null;
+    private final List<Particle> particles = new ArrayList<>();
+    private final Random rand = new Random();
 
     GameLoopTimer(
             GameController controller,
@@ -416,13 +423,21 @@ final class GameLoopTimer extends AnimationTimer {
             if (e == SeEvent.WORLD_ROTATE) {
                 triggerBoardSpinAnimation();
             }
+            if (e == SeEvent.LINE_CLEAR) {
+                spawnLineParticles();
+            }
         }
 
-        renderer.drawAll(
-                view.getPlayFieldPane().getPlayfieldCanvas().getGraphicsContext2D(),
-                controller.getBoard(),
-                controller.getCurrent(),
-                controller.getGhost());
+        javafx.scene.canvas.GraphicsContext gc = view.getPlayFieldPane().getPlayfieldCanvas().getGraphicsContext2D();
+        renderer.drawAll(gc, controller.getBoard(), controller.getCurrent(), controller.getGhost());
+
+        Iterator<Particle> it = particles.iterator();
+        while (it.hasNext()) {
+            Particle p = it.next();
+            p.update();
+            if (p.isDead()) it.remove();
+        }
+        renderer.drawParticles(gc, particles);
 
         int score = controller.getScore();
         int lines = controller.getLineCount();
@@ -457,5 +472,34 @@ final class GameLoopTimer extends AnimationTimer {
         rt.setCycleCount(1);
         rt.play();
         currentSpinAnim = rt;
+    }
+
+    private void spawnLineParticles() {
+        List<Integer> rows = new ArrayList<>();
+        List<Color[]> colors = new ArrayList<>();
+        controller.getBoard().pollLastClearedLines(rows, colors);
+
+        int cs = renderer.getCellSize();
+
+        for (int i = 0; i < rows.size(); i++) {
+            int row = rows.get(i);
+            Color[] lineColors = colors.get(i);
+            double cy = row * cs + cs * 0.5;
+
+            for (int col = 0; col < Board.COLS; col++) {
+                Color color = lineColors[col];
+                if (color == null) color = Color.WHITE;
+                double cx = col * cs + cs * 0.5;
+
+                for (int k = 0; k < 5; k++) {
+                    double angle = rand.nextDouble() * 2 * Math.PI;
+                    double speed = 1.5 + rand.nextDouble() * 4.0;
+                    double vx = Math.cos(angle) * speed;
+                    double vy = Math.sin(angle) * speed - 1.5;
+                    int life = 30 + rand.nextInt(20);
+                    particles.add(new Particle(cx, cy, vx, vy, color, life));
+                }
+            }
+        }
     }
 }

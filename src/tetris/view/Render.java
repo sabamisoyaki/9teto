@@ -1,5 +1,6 @@
 package tetris.view;
 
+import java.util.List;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 import tetris.model.Board;
@@ -13,10 +14,15 @@ public class Render {
         this.cellSize = cellSize;
     }
 
+    public int getCellSize() {
+        return cellSize;
+    }
+
     // ===========================
     //     全描画まとめ
     // ===========================
     public void drawAll(GraphicsContext gc, Board board, Tetromino current, Tetromino ghost) {
+        gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
         drawBoard(gc, board);
         drawGhost(gc, ghost);
         drawTetromino(gc, current);
@@ -120,6 +126,20 @@ public class Render {
             }
         }
 
+        gc.setGlobalAlpha(1.0);
+    }
+
+    // ===========================
+    //      パーティクル描画
+    // ===========================
+    public void drawParticles(GraphicsContext gc, List<Particle> particles) {
+        for (Particle p : particles) {
+            double alpha = p.alpha();
+            double size = cellSize * 0.15 * alpha + 1.5;
+            gc.setGlobalAlpha(alpha);
+            gc.setFill(p.color);
+            gc.fillRect(p.x - size / 2, p.y - size / 2, size, size);
+        }
         gc.setGlobalAlpha(1.0);
     }
 
