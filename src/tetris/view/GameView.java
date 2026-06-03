@@ -26,8 +26,10 @@ public class GameView {
     private static final double SIDE_WIDTH    = 960;
     private static final double PLAY_FIELD_SIZE = 840;
     private static final double NEXT_HEIGHT     = 168; // 7:1 vertical split (840:168)
+    private static final double PREVIEW_WIDTH   = PLAY_FIELD_SIZE / 2;
 
     private final BorderPane root;
+    private final NextPane holdPane;
     private final NextPane nextPane;
     private final DeviceFramePane playFieldPane;
     private final CharacterPane characterPane;
@@ -37,11 +39,15 @@ public class GameView {
         this.root = new BorderPane();
 
         this.playFieldPane = new DeviceFramePane(PLAY_FIELD_SIZE);
-        this.nextPane = new NextPane(PLAY_FIELD_SIZE, NEXT_HEIGHT);
+        this.holdPane = new NextPane(PREVIEW_WIDTH, NEXT_HEIGHT, "HOLD (H)");
+        this.nextPane = new NextPane(PREVIEW_WIDTH, NEXT_HEIGHT, "NEXT");
         this.characterPane = new CharacterPane();
         this.hudPane = new HudPane();
 
-        VBox leftColumn = new VBox(playFieldPane, nextPane);
+        HBox previewRow = new HBox(holdPane, nextPane);
+        previewRow.setAlignment(Pos.TOP_LEFT);
+
+        VBox leftColumn = new VBox(playFieldPane, previewRow);
         leftColumn.setAlignment(Pos.TOP_LEFT);
         leftColumn.setPadding(new Insets(20, 0, 0, 20));
         leftColumn.setPrefSize(LEFT_WIDTH, WINDOW_HEIGHT);
@@ -77,6 +83,7 @@ public class GameView {
     }
 
     public BorderPane getRoot()                  { return root; }
+    public NextPane getHoldPane()                { return holdPane; }
     public NextPane getNextPane()                { return nextPane; }
     public DeviceFramePane getPlayFieldPane()    { return playFieldPane; }
     public CharacterPane getCharacterPane()      { return characterPane; }

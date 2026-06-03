@@ -199,6 +199,7 @@ public class Main extends Application {
                 (int) (view.getPlayFieldPane().getPlayfieldCanvas().getWidth() / Board.COLS),
                 (int) (view.getPlayFieldPane().getPlayfieldCanvas().getHeight() / Board.ROWS));
         Render renderer = new Render(cellSize);
+        NextPane holdPane = view.getHoldPane();
         NextPane nextPane = view.getNextPane();
         HudPane hudPane = view.getHudPane();
 
@@ -218,6 +219,11 @@ public class Main extends Application {
                 controller.getCurrent(),
                 controller.getGhost());
         renderer.drawNext(
+                holdPane.getNextCanvas().getGraphicsContext2D(),
+                controller.getHold(),
+                0,
+                0);
+        renderer.drawNext(
                 nextPane.getNextCanvas().getGraphicsContext2D(),
                 controller.getNext(),
                 0,
@@ -229,6 +235,7 @@ public class Main extends Application {
                 controller,
                 view,
                 renderer,
+                holdPane,
                 nextPane,
                 hudPane,
                 keys,
@@ -364,6 +371,7 @@ final class GameLoopTimer extends AnimationTimer {
     private final GameController controller;
     private final GameView view;
     private final Render renderer;
+    private final NextPane holdPane;
     private final NextPane nextPane;
     private final HudPane hudPane;
     private final Set<KeyCode> keys;
@@ -379,6 +387,7 @@ final class GameLoopTimer extends AnimationTimer {
             GameController controller,
             GameView view,
             Render renderer,
+            NextPane holdPane,
             NextPane nextPane,
             HudPane hudPane,
             Set<KeyCode> keys,
@@ -388,6 +397,7 @@ final class GameLoopTimer extends AnimationTimer {
         this.controller = controller;
         this.view = view;
         this.renderer = renderer;
+        this.holdPane = holdPane;
         this.nextPane = nextPane;
         this.hudPane = hudPane;
         this.keys = keys;
@@ -428,6 +438,12 @@ final class GameLoopTimer extends AnimationTimer {
         int lines = controller.getLineCount();
         hudPane.updateScore(score);
         hudPane.updateLines(lines);
+
+        renderer.drawNext(
+                holdPane.getNextCanvas().getGraphicsContext2D(),
+                controller.getHold(),
+                0,
+                0);
 
         renderer.drawNext(
                 nextPane.getNextCanvas().getGraphicsContext2D(),

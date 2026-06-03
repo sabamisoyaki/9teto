@@ -4,8 +4,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import tetris.ResourcePath;
 
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
@@ -19,6 +21,10 @@ public class NextPane extends StackPane {
     private final ImageView backgroundView;
 
     public NextPane(double width, double height) {
+        this(width, height, "NEXT");
+    }
+
+    public NextPane(double width, double height, String title) {
         setPrefSize(width, height);
         setMinSize(width, height);
         setMaxSize(width, height);
@@ -34,7 +40,12 @@ public class NextPane extends StackPane {
         nextCanvas.setHeight(height);
         nextCellSize = (int) Math.min(nextCanvas.getWidth() / 4, nextCanvas.getHeight() / 4);
 
-        getChildren().addAll(backgroundView, nextCanvas);
+        Label titleLabel = new Label(title);
+        titleLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #dcecff; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 4, 0.0, 1, 1);");
+        StackPane.setAlignment(titleLabel, Pos.TOP_LEFT);
+        StackPane.setMargin(titleLabel, new Insets(8, 0, 0, 12));
+
+        getChildren().addAll(backgroundView, nextCanvas, titleLabel);
 
         loadBackgroundImage(DEFAULT_BACKGROUND_IMAGE);
     }
