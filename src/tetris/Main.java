@@ -227,7 +227,8 @@ public class Main extends Application {
                 holdPane.getNextCanvas().getGraphicsContext2D(),
                 controller.getHold(),
                 0,
-                0);
+                0,
+                !controller.canHold());
         renderer.drawNext(
                 nextPane.getNextCanvas().getGraphicsContext2D(),
                 controller.getNext(),
@@ -458,7 +459,8 @@ final class GameLoopTimer extends AnimationTimer {
                 holdPane.getNextCanvas().getGraphicsContext2D(),
                 controller.getHold(),
                 0,
-                0);
+                0,
+                !controller.canHold());
 
         renderer.drawNext(
                 nextPane.getNextCanvas().getGraphicsContext2D(),

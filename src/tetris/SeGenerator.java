@@ -21,6 +21,7 @@ public final class SeGenerator {
             checkAndGenerate(audioDir.resolve("se_lock.wav"), SeType.LOCK);
             checkAndGenerate(audioDir.resolve("se_clear.wav"),        SeType.CLEAR);
             checkAndGenerate(audioDir.resolve("se_world_rotate.wav"), SeType.WORLD_ROTATE);
+            checkAndGenerate(audioDir.resolve("se_hold.wav"),         SeType.HOLD);
         } catch (IOException e) {
             System.err.println("[SE Generator] Failed to create directories or write files: " + e.getMessage());
         }
@@ -40,7 +41,7 @@ public final class SeGenerator {
     }
 
     private enum SeType {
-        MOVE, ROTATE, HARD_DROP, LOCK, CLEAR, WORLD_ROTATE
+        MOVE, ROTATE, HARD_DROP, LOCK, CLEAR, WORLD_ROTATE, HOLD
     }
 
     private static byte[] generateWavData(SeType type) {
@@ -51,6 +52,7 @@ public final class SeGenerator {
             case LOCK -> 0.15;
             case CLEAR -> 0.45;
             case WORLD_ROTATE -> 0.08;
+            case HOLD -> 0.12;
         };
 
         int numSamples = (int) (SAMPLE_RATE * duration);
@@ -91,6 +93,15 @@ public final class SeGenerator {
                     // テスト用: ROTATE と同じ波形で代替
                     double freq = 500 + Math.sin(t / duration * Math.PI * 4) * 200 + (t / duration) * 300;
                     double env = Math.sin(t / duration * Math.PI);
+                    sampleValue = Math.sin(2 * Math.PI * freq * t) * env;
+                }
+                case HOLD -> {
+                    // Short descending-then-rising swap tone
+                    double progress = t / duration;
+                    double freq = progress < 0.5
+                        ? 600 - progress * 2 * 200     // 600 → 400 Hz
+                        : 400 + (progress - 0.5) * 2 * 300; // 400 → 700 Hz
+                    double env = Math.sin(progress * Math.PI);
                     sampleValue = Math.sin(2 * Math.PI * freq * t) * env;
                 }
                 case CLEAR -> {

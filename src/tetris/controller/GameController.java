@@ -116,6 +116,8 @@ public class GameController {
           { {0,0},{-2,0},{1,0},{-2,-1},{1,2} } }     // 3 -> 2 (CCW)
     };
 
+    private static final int[][] KICK_NONE = { {0, 0} };
+
     // ==================================================
     //                 コンストラクタ
     // ==================================================
@@ -230,6 +232,7 @@ public class GameController {
         canHold = false;
         isGrounded = false;
         groundStartTime = 0;
+        frameEvents.add(SeEvent.HOLD);
 
         handleSpawnBlocked();
     }
@@ -466,20 +469,6 @@ public class GameController {
     //                     SRS 本体
     // ==================================================
 
-    private int[][] rotateShape(int[][] src, boolean clockwise) {
-        int[][] dst = new int[4][4];
-        if (clockwise) {
-            for (int r = 0; r < 4; r++)
-                for (int c = 0; c < 4; c++)
-                    dst[c][3 - r] = src[r][c];
-        } else {
-            for (int r = 0; r < 4; r++)
-                for (int c = 0; c < 4; c++)
-                    dst[3 - c][r] = src[r][c];
-        }
-        return dst;
-    }
-
     private int toIndex(int rot) {
         return (rot % 4 + 4) % 4;
     }
@@ -490,14 +479,19 @@ public class GameController {
         int oldRot = toIndex(t.getRotation());
         int newRot = clockwise ? toIndex(oldRot + 1) : toIndex(oldRot - 1);
 
-        int[][] rotatedShape = rotateShape(t.getShape(), clockwise);
+        int[][] rotatedShape = t.getType().getShape(newRot);
 
-        int[][][][] table = (t.getType() == ShapeType.I) ? KICK_I : KICK_NORMAL;
-        int[][] kicks = table[oldRot][clockwise ? 0 : 1];
+        int[][] kicks;
+        if (t.getType() == ShapeType.O) {
+            kicks = KICK_NONE;
+        } else {
+            int[][][][] table = (t.getType() == ShapeType.I) ? KICK_I : KICK_NORMAL;
+            kicks = table[oldRot][clockwise ? 0 : 1];
+        }
 
         for (int[] k : kicks) {
             int newCol = t.getCol() + k[0];
-            int newRow = t.getRow() + k[1];
+            int newRow = t.getRow() - k[1]; // SRS kick y is up-positive; board rows grow downward.
 
             if (board.canPlace(rotatedShape, newRow, newCol)) {
                 t.setShape(rotatedShape);

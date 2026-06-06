@@ -32,11 +32,15 @@ public class Render {
     //        Nextミノ描画
     // ===========================
     public void drawNext(GraphicsContext gc, Tetromino next, int offsetX, int offsetY) {
+        drawNext(gc, next, offsetX, offsetY, false);
+    }
+
+    public void drawNext(GraphicsContext gc, Tetromino next, int offsetX, int offsetY, boolean grayed) {
         gc.clearRect(0, 0, gc.getCanvas().getWidth(), gc.getCanvas().getHeight());
 
         if (next == null) return;
 
-        gc.setFill(next.getColor());
+        gc.setFill(grayed ? Color.GRAY : next.getColor());
 
         int[][] shape = next.getShape();
         int minR = 4, maxR = 0, minC = 4, maxC = 0;

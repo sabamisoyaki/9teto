@@ -23,6 +23,7 @@ public class SePlayer {
         load(SeEvent.LOCK,       "se_lock.wav");
         load(SeEvent.LINE_CLEAR,   "se_clear.wav");
         load(SeEvent.WORLD_ROTATE, "se_world_rotate.wav");
+        load(SeEvent.HOLD,         "se_hold.wav");
     }
 
     private void load(SeEvent event, String filename) {
