@@ -21,6 +21,8 @@ public class GameController {
     private final Board board;
     private Tetromino current;
     private Tetromino next;
+    private Tetromino hold;
+    private boolean canHold = true;
     private final Queue<ShapeType> bag = new ArrayDeque<>();
 
     // ワールド回転（重力反転ギミック）の閾値
@@ -68,6 +70,8 @@ public class GameController {
     public int getWorldRotateStep()   { return worldRotateStep; }
     public int getWorldRotateLoopCount() { return worldRotateLoopCount; }
     public Tetromino getNext()        { return next; }
+    public Tetromino getHold()        { return hold; }
+    public boolean canHold()          { return canHold; }
     public void rotateWorldClockwise() { rotateWorldAndCount(); }
 
     // ==========================
@@ -207,6 +211,29 @@ public class GameController {
         lockPiece();
     }
 
+    public void holdCurrentPiece() {
+        if (!canHold || current == null || trueGameOver) {
+            return;
+        }
+
+        ShapeType currentType = current.getType();
+        if (hold == null) {
+            hold = new Tetromino(currentType);
+            current = next;
+            next = getNextTetromino();
+        } else {
+            ShapeType holdType = hold.getType();
+            hold = new Tetromino(currentType);
+            current = new Tetromino(holdType);
+        }
+
+        canHold = false;
+        isGrounded = false;
+        groundStartTime = 0;
+
+        handleSpawnBlocked();
+    }
+
     // ==================================================
     //              入力状態（1フレーム前保持）
     // ==================================================
@@ -216,6 +243,7 @@ public class GameController {
     private boolean prevX = false;
     private boolean prevUp = false;
     private boolean prevSpace = false;
+    private boolean prevH = false;
 
     public void updateInput(Set<KeyCode> keys, long now) {
 
@@ -226,6 +254,7 @@ public class GameController {
         boolean z     = keys.contains(KeyCode.Z);
         boolean x     = keys.contains(KeyCode.X);
         boolean space = keys.contains(KeyCode.SPACE);
+        boolean h     = keys.contains(KeyCode.H);
 
         // ====================================
         // 横移動（DAS / ARR 押しっぱ対応）
@@ -283,6 +312,13 @@ public class GameController {
         }
 
         // ====================================
+        // ホールド（1ミノにつき1回）
+        // ====================================
+        if (h && !prevH) {
+            holdCurrentPiece();
+        }
+
+        // ====================================
         // ソフトドロップ（押しっぱOK）
         // ====================================
         if (down) {
@@ -301,6 +337,7 @@ public class GameController {
         prevX = x;
         prevUp = up;
         prevSpace = space;
+        prevH = h;
     }
 
     // ==================================================
@@ -362,20 +399,10 @@ public class GameController {
         // 次ミノに交代
         current = next;
         next = getNextTetromino();
+        canHold = true;
 
         // 出現即死チェック
-        if (!board.canMove(current, 0, 0)) {
-            gameOverStreak++;
-            System.out.println("TEMP GAME OVER (" + gameOverStreak + "/4)");
-
-            rotateWorldAndCount();
-
-            if (gameOverStreak >= MAX_GAME_OVER_STREAK) {
-                trueGameOver = true;
-                return;
-            }
-
-            current = getNextTetromino();
+        if (handleSpawnBlocked()) {
             return;
         }
 
@@ -385,6 +412,25 @@ public class GameController {
         placedMinoCount++;
         System.out.println(placedMinoCount);
         frameEvents.add(SeEvent.LOCK);
+    }
+
+    private boolean handleSpawnBlocked() {
+        if (board.canMove(current, 0, 0)) {
+            return false;
+        }
+
+        gameOverStreak++;
+        System.out.println("TEMP GAME OVER (" + gameOverStreak + "/4)");
+
+        rotateWorldAndCount();
+
+        if (gameOverStreak >= MAX_GAME_OVER_STREAK) {
+            trueGameOver = true;
+            return true;
+        }
+
+        current = getNextTetromino();
+        return true;
     }
 
     private void rotateWorldAndCount() {

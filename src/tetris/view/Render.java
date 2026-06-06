@@ -55,8 +55,8 @@ public class Render {
         int shapeWidth  = (maxC - minC + 1);
         int shapeHeight = (maxR - minR + 1);
 
-        int baseX = offsetX + (int)( (4 - shapeWidth)  * cellSize / 2 );
-        int baseY = offsetY + (int)( (4 - shapeHeight) * cellSize / 2 );
+        int baseX = offsetX + (int) ((gc.getCanvas().getWidth() - offsetX - shapeWidth * cellSize) / 2);
+        int baseY = offsetY + (int) ((gc.getCanvas().getHeight() - offsetY - shapeHeight * cellSize) / 2);
 
         for (int r = 0; r < 4; r++) {
             for (int c = 0; c < 4; c++) {
