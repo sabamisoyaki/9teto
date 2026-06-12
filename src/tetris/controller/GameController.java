@@ -38,6 +38,15 @@ public class GameController {
     private static final int MAX_GAME_OVER_STREAK = 4;
 
     // ==========================
+    //   レベル・落下速度
+    //   （25×25 の広い盤面なので標準テトリスより緩めの加速。プレイテストで調整する）
+    // ==========================
+    private static final int LINES_PER_LEVEL = 5;
+    private static final long BASE_FALL_NANOS = 300_000_000L;  // Lv1 = 300ms
+    private static final long MIN_FALL_NANOS  = 80_000_000L;   // 下限 80ms
+    private static final long FALL_STEP_NANOS = 25_000_000L;   // 1Lv ごとに -25ms
+
+    // ==========================
     //   入力関連パラメータ
     // ==========================
     private long lastLeftPress = 0;
@@ -56,6 +65,15 @@ public class GameController {
     private boolean isGrounded = false;
     private long groundStartTime = 0;
     private static final long LOCK_DELAY = 500_000_000L;
+
+    // --- ロック遅延のムーブリセット（ガイドライン準拠） ---
+    // 接地中の移動・回転成功でロック遅延を巻き戻す。無限回転対策として上限15回
+    private int lockResetCount = 0;
+    private static final int MAX_LOCK_RESETS = 15;
+
+    // --- ドロップ加点（ガイドライン標準: ソフト1点/マス・ハード2点/マス） ---
+    private static final int SOFT_DROP_SCORE_PER_CELL = 1;
+    private static final int HARD_DROP_SCORE_PER_CELL = 2;
 
     // ==========================
     //   スコア・ライン・接地ブロック数
@@ -80,7 +98,13 @@ public class GameController {
 
     public int getScore()             { return score; }
     public int getLineCount()         { return totalLines; }
-    public int getLevel()             { return Math.min(10, (totalLines / 10) + 1); }
+    public int getLevel()             { return totalLines / LINES_PER_LEVEL + 1; }
+
+    /** レベルに応じた自然落下間隔。Lv1=300ms から 1Lv ごとに 25ms 短縮、下限 80ms */
+    public long getFallIntervalNanos() {
+        long interval = BASE_FALL_NANOS - (long) (getLevel() - 1) * FALL_STEP_NANOS;
+        return Math.max(MIN_FALL_NANOS, interval);
+    }
     public int getPlacedMinoCount()   { return placedMinoCount; }
     public int getWorldRotateCount()  { return worldRotateCount; }
     public int getWorldRotateStep()   { return worldRotateStep; }
@@ -90,6 +114,13 @@ public class GameController {
     public boolean canHold()          { return canHold; }
     public void rotateWorldClockwise() { rotateWorldAndCount(); }
     public int getComboCount()        { return comboCount; }
+    public int getGameOverStreak()    { return gameOverStreak; }
+    public int getMaxGameOverStreak() { return MAX_GAME_OVER_STREAK; }
+
+    /** 次のワールド回転までの残り消去ライン数 */
+    public int getLinesUntilRotate() {
+        return Math.max(0, nextRotateThreshold - board.getTotalClearedLines());
+    }
 
     public Color getLastHardDropColor() { return lastHardDropColor; }
 
@@ -125,8 +156,6 @@ public class GameController {
           { {0,0},{-2,0},{1,0},{-2,-1},{1,2} } }
     };
 
-    private static final int[][] KICK_NONE = { {0, 0} };
-
     // ==================================================
     //                 コンストラクタ
     // ==================================================
@@ -158,11 +187,21 @@ public class GameController {
     //                    移動系 API
     // ==================================================
 
-    public boolean softDrop() {
+    /**
+     * 1段落下させる。
+     *
+     * @param byPlayer プレイヤーのソフトドロップ入力なら true（1マスごとに加点）。
+     *                 自然落下は false（加点なし）。
+     */
+    public boolean softDrop(boolean byPlayer) {
         if (board.canMoveDown(current)) {
             current.setRow(current.getRow() + 1);
+            if (byPlayer) {
+                score += SOFT_DROP_SCORE_PER_CELL;
+            }
             isGrounded = false;
             groundStartTime = 0;
+            lockResetCount = 0; // 落下に成功したらムーブリセット回数を回復
             return true;
         } else {
             if (!isGrounded) {
@@ -182,6 +221,7 @@ public class GameController {
         if (board.canMove(current, 0, -1)) {
             current.setCol(current.getCol() - 1);
             resetGroundIfLifted();
+            onSuccessfulShift();
             lastActionWasRotate = false;
             frameEvents.add(SeEvent.MOVE);
         }
@@ -191,6 +231,7 @@ public class GameController {
         if (board.canMove(current, 0, 1)) {
             current.setCol(current.getCol() + 1);
             resetGroundIfLifted();
+            onSuccessfulShift();
             lastActionWasRotate = false;
             frameEvents.add(SeEvent.MOVE);
         }
@@ -215,6 +256,7 @@ public class GameController {
         }
 
         int endRow = current.getRow();
+        score += (endRow - startRow) * HARD_DROP_SCORE_PER_CELL;
         hardDropTrailCells.clear();
         for (int r = startRow; r < endRow; r++) {
             for (int sr = 0; sr < 4; sr++) {
@@ -235,6 +277,13 @@ public class GameController {
             return;
         }
 
+        // 交換先ミノのスポーン位置が塞がっている場合はホールド自体を不発にする。
+        // 自衛操作のホールドで仮ゲームオーバー＋世界回転が誘発されるのは理不尽なため
+        Tetromino incoming = (hold == null) ? next : new Tetromino(hold.getType());
+        if (!board.canMove(incoming, 0, 0)) {
+            return;
+        }
+
         ShapeType currentType = current.getType();
         if (hold == null) {
             hold = new Tetromino(currentType);
@@ -249,10 +298,9 @@ public class GameController {
         canHold = false;
         isGrounded = false;
         groundStartTime = 0;
+        lockResetCount = 0;
         lastActionWasRotate = false;
         frameEvents.add(SeEvent.HOLD);
-
-        handleSpawnBlocked();
     }
 
     // ==================================================
@@ -263,7 +311,12 @@ public class GameController {
     private boolean prevZ = false;
     private boolean prevX = false;
     private boolean prevUp = false;
-    private boolean prevSpace = false;
+    // ゲーム開始時点で SPACE は「押されているもの」とみなす。
+    // スタート/リトライをSPACEで行うため、押しっぱなしでの即ハードドロップ暴発を防ぐ。
+    private boolean prevSpace = true;
+    // SPACE はシーン遷移キーでもあるため、一度離されるのを確認するまで
+    // ハードドロップを許可しない（キーリピートが初フレーム後に届く競合への対策）
+    private boolean spaceArmed = false;
     private boolean prevH = false;
 
     public void updateInput(Set<KeyCode> keys, long now) {
@@ -316,8 +369,11 @@ public class GameController {
             rotateRight();
         }
 
-        if (space && !prevSpace) {
+        if (space && !prevSpace && spaceArmed) {
             hardDrop();
+        }
+        if (!space) {
+            spaceArmed = true;
         }
 
         if (h && !prevH) {
@@ -326,7 +382,7 @@ public class GameController {
 
         if (down) {
             if (now - lastSoftDrop > SDF) {
-                softDrop();
+                softDrop(true);
                 lastSoftDrop = now;
             }
         }
@@ -404,7 +460,19 @@ public class GameController {
     private void lockPiece() {
         TSpinType tSpin = detectTSpin();
 
-        board.fixToBoard(current);
+        if (!board.fixToBoard(current)) {
+            // ロックアウト: 全ブロックが盤面外（天井より上）で固定された。
+            // ブロックが「欠けて」残ることはないため、スポーン詰まりと同じペナルティに乗せる
+            comboCount = -1;
+            canHold = true;
+            lastActionWasRotate = false;
+            isGrounded = false;
+            groundStartTime = 0;
+            lockResetCount = 0;
+            applyTempGameOverPenalty();
+            return;
+        }
+
         score += current.countBlocks() * 5;
 
         int before = board.getTotalClearedLines();
@@ -448,6 +516,7 @@ public class GameController {
         gameOverStreak = 0;
         isGrounded = false;
         groundStartTime = 0;
+        lockResetCount = 0;
         placedMinoCount++;
         frameEvents.add(SeEvent.LOCK);
     }
@@ -456,17 +525,26 @@ public class GameController {
         if (board.canMove(current, 0, 0)) {
             return false;
         }
+        applyTempGameOverPenalty();
+        return true;
+    }
 
+    /**
+     * 仮ゲームオーバー（スポーン詰まり・ロックアウト）共通のペナルティ。
+     * ストリーク加算＋世界回転を行い、上限到達で真のゲームオーバー。
+     * 続行できる場合は現在のミノを破棄して新しいミノに差し替える。
+     */
+    private void applyTempGameOverPenalty() {
         gameOverStreak++;
+        frameEvents.add(SeEvent.TEMP_GAME_OVER);
         rotateWorldAndCount();
 
         if (gameOverStreak >= MAX_GAME_OVER_STREAK) {
             trueGameOver = true;
-            return true;
+            return;
         }
 
         current = getNextTetromino();
-        return true;
     }
 
     private void rotateWorldAndCount() {
@@ -513,6 +591,30 @@ public class GameController {
         }
     }
 
+    /**
+     * 接地中の移動・回転成功時にロック遅延を巻き戻す（ムーブリセット）。
+     * 無限回転・無限スライド対策として上限 MAX_LOCK_RESETS 回、超過後は延長しない。
+     */
+    private void onSuccessfulShift() {
+        if (isGrounded && lockResetCount < MAX_LOCK_RESETS) {
+            groundStartTime = System.nanoTime();
+            lockResetCount++;
+        }
+    }
+
+    /**
+     * ポーズ解除時に System.nanoTime() 基準のタイマーをポーズ時間ぶんずらす。
+     * これが無いと接地中にポーズ → 解除した瞬間にロック遅延が即発火する。
+     */
+    public void shiftTimersAfterPause(long pausedNanos) {
+        if (groundStartTime != 0) groundStartTime += pausedNanos;
+        lastLeftPress += pausedNanos;
+        lastRightPress += pausedNanos;
+        lastMoveLeftRepeat += pausedNanos;
+        lastMoveRightRepeat += pausedNanos;
+        lastSoftDrop += pausedNanos;
+    }
+
     // ==================================================
     //                     SRS 本体
     // ==================================================
@@ -522,6 +624,11 @@ public class GameController {
     }
 
     private void rotateSRS(boolean clockwise) {
+        // O ミノは回転しない（ガイドライン準拠）。SE もロック遅延リセットも発生させない
+        if (current.getType() == ShapeType.O) {
+            return;
+        }
+
         Tetromino t = current;
 
         int oldRot = toIndex(t.getRotation());
@@ -529,13 +636,8 @@ public class GameController {
 
         int[][] rotatedShape = t.getType().getShape(newRot);
 
-        int[][] kicks;
-        if (t.getType() == ShapeType.O) {
-            kicks = KICK_NONE;
-        } else {
-            int[][][][] table = (t.getType() == ShapeType.I) ? KICK_I : KICK_NORMAL;
-            kicks = table[oldRot][clockwise ? 0 : 1];
-        }
+        int[][][][] table = (t.getType() == ShapeType.I) ? KICK_I : KICK_NORMAL;
+        int[][] kicks = table[oldRot][clockwise ? 0 : 1];
 
         for (int[] k : kicks) {
             int newCol = t.getCol() + k[0];
@@ -548,6 +650,7 @@ public class GameController {
                 t.setRotation(newRot);
 
                 resetGroundIfLifted();
+                onSuccessfulShift();
                 lastActionWasRotate = true;
                 frameEvents.add(SeEvent.ROTATE);
                 return;

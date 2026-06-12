@@ -7,9 +7,12 @@ import tetris.ResourcePath;
 import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
+import javafx.animation.ParallelTransition;
 import javafx.animation.Timeline;
+import javafx.animation.TranslateTransition;
 import javafx.util.Duration;
 import javafx.scene.canvas.Canvas;
+import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
@@ -23,6 +26,8 @@ public class DeviceFramePane extends Pane {
     private final Canvas playfieldCanvas;
     private final ImageView backgroundView;
     private final Rectangle flashOverlay;
+    // PINCH 警告用。テーマフラッシュ（flashOverlay）と同時発生するため別レイヤーに分ける
+    private final Rectangle dangerOverlay;
     private final Rectangle frame;
 
     public DeviceFramePane(double frameSize) {
@@ -49,7 +54,11 @@ public class DeviceFramePane extends Pane {
         flashOverlay.setOpacity(0);
         flashOverlay.setMouseTransparent(true);
 
-        getChildren().addAll(backgroundView, frame, playfieldCanvas, flashOverlay);
+        dangerOverlay = new Rectangle(frameSize, frameSize, Color.rgb(255, 40, 40));
+        dangerOverlay.setOpacity(0);
+        dangerOverlay.setMouseTransparent(true);
+
+        getChildren().addAll(backgroundView, frame, playfieldCanvas, flashOverlay, dangerOverlay);
 
         applyBackgroundImage(DEFAULT_BACKGROUND_IMAGE);
     }
@@ -75,11 +84,50 @@ public class DeviceFramePane extends Pane {
     public void triggerFlash(int lines) {
         if (lines <= 0) return;
         double intensity = Math.min(1.0, lines * 0.25);
+        flashOverlay.setFill(Color.WHITE);
         flashOverlay.setOpacity(intensity);
         FadeTransition ft = new FadeTransition(Duration.millis(300), flashOverlay);
         ft.setFromValue(intensity);
         ft.setToValue(0);
         ft.play();
+    }
+
+    /** 仮ゲームオーバー時などの警告用: 画面全体を赤くフラッシュさせる */
+    public void triggerDangerFlash() {
+        dangerOverlay.setOpacity(0.45);
+        FadeTransition ft = new FadeTransition(Duration.millis(500), dangerOverlay);
+        ft.setFromValue(0.45);
+        ft.setToValue(0);
+        ft.play();
+    }
+
+    /** プレイフィールド上に流れるスコア／警告ポップアップを表示する */
+    public void spawnScorePopup(String text, Color color) {
+        Label popup = new Label(text);
+        popup.setStyle("-fx-font-size: 42px; -fx-font-weight: bold;"
+            + " -fx-text-fill: " + toWebColor(color) + ";"
+            + " -fx-font-family: 'Courier New';"
+            + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 6, 0.0, 2, 2);");
+        popup.setLayoutX(getPrefWidth() / 2 - 120);
+        popup.setLayoutY(getPrefHeight() * 0.35);
+        popup.setMouseTransparent(true);
+        getChildren().add(popup);
+
+        TranslateTransition move = new TranslateTransition(Duration.millis(900), popup);
+        move.setByY(-90);
+        FadeTransition fade = new FadeTransition(Duration.millis(900), popup);
+        fade.setFromValue(1.0);
+        fade.setToValue(0.0);
+        ParallelTransition anim = new ParallelTransition(move, fade);
+        anim.setOnFinished(e -> getChildren().remove(popup)); // リーク防止: 必ず remove
+        anim.play();
+    }
+
+    private static String toWebColor(Color c) {
+        return String.format("#%02x%02x%02x",
+            (int) Math.round(c.getRed() * 255),
+            (int) Math.round(c.getGreen() * 255),
+            (int) Math.round(c.getBlue() * 255));
     }
 
     // ============================================================

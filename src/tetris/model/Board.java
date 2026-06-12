@@ -64,7 +64,14 @@ public class Board {
 
 
     // --- 固定 ---
-    public void fixToBoard(Tetromino t) {
+    /**
+     * ミノを盤面に固定する。
+     *
+     * @return 1マスでも盤面内に固定できたら true。
+     *         false（全ブロックが盤面外＝ロックアウト）の扱いは呼び出し側が決める。
+     */
+    public boolean fixToBoard(Tetromino t) {
+        boolean anyFixed = false;
         for (int r = 0; r < 4; r++) {
             for (int c = 0; c < 4; c++) {
                 if (t.getShape()[r][c] == 1) {
@@ -72,9 +79,11 @@ public class Board {
                     int bc = t.getCol() + c;
                     if (br < 0 || br >= ROWS || bc < 0 || bc >= COLS) continue;
                     board[br][bc] = t.getColor();
+                    anyFixed = true;
                 }
             }
         }
+        return anyFixed;
     }
 
     /** 固定ブロック全体を90°回転させる（右回転） */

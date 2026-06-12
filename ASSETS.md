@@ -57,6 +57,7 @@ SE は `SePlayer` が起動時にロードし、ファイルが存在しない�
 | `se_tspin.wav` | T-Spin（フルスピン + ライン消去） |
 | `se_tspin_mini.wav` | T-Spin Mini（+ ライン消去） |
 | `se_ren.wav` | Ren コンボ（2 連続以上のライン消去） |
+| `se_pinch.wav` | 仮ゲームオーバー（スポーン詰まり） |
 
 ### 音量の仕組み
 

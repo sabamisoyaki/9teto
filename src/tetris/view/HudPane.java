@@ -25,19 +25,26 @@ public class HudPane extends StackPane {
 
     private static final Path DEFAULT_BACKGROUND_IMAGE = ResourcePath.of("images", "hud-bg.png");
 
+    private static final String ROTATE_STYLE_NORMAL =
+        "-fx-font-size: 22px; -fx-text-fill: #ffcc66; -fx-font-family: 'Courier New';";
+    private static final String ROTATE_STYLE_WARNING =
+        "-fx-font-size: 22px; -fx-text-fill: #ff6666; -fx-font-weight: bold; -fx-font-family: 'Courier New';";
+
     private final Label scoreLabel;
     private final Label linesLabel;
     private final Label levelLabel;
+    private final Label rotateLabel;
+    private final Label dangerLabel;
     private final Label dialogueLabel;
     private final VBox contentBox;
 
-    private int lastDialogueScore = -1;
-    private int lastDialogueLines = -1;
+    private int lastRotateRemaining = Integer.MIN_VALUE;
+    private int lastDangerStreak = Integer.MIN_VALUE;
 
     public HudPane() {
-        setPrefSize(480, 280);
-        setMinSize(480, 280);
-        setMaxSize(480, 280);
+        setPrefSize(480, 400);
+        setMinSize(480, 400);
+        setMaxSize(480, 400);
         setAlignment(Pos.TOP_LEFT);
         setStyle("-fx-background-color: rgba(10, 10, 10, 0.75); -fx-border-color: #445566; -fx-border-width: 1px; -fx-border-radius: 5px; -fx-background-radius: 5px;");
 
@@ -48,16 +55,20 @@ public class HudPane extends StackPane {
         scoreLabel = new Label("Score: 0");
         linesLabel = new Label("Lines: 0");
         levelLabel = new Label("Level: 1");
+        rotateLabel = new Label("Spin in: 3 lines");
+        dangerLabel = new Label("Danger: ○○○○");
         dialogueLabel = new Label();
 
         scoreLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #e0e0e0; -fx-font-family: 'Courier New';");
         linesLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #e0e0e0; -fx-font-family: 'Courier New';");
         levelLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #e0e0e0; -fx-font-family: 'Courier New';");
+        rotateLabel.setStyle(ROTATE_STYLE_NORMAL);
+        dangerLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #ff8888; -fx-font-family: 'Courier New';");
         dialogueLabel.setStyle("-fx-font-size: 18px; -fx-text-fill: #cccccc; -fx-font-family: 'Courier New'; -fx-line-spacing: 5px;");
         dialogueLabel.setWrapText(true);
         dialogueLabel.setMaxWidth(420);
 
-        contentBox.getChildren().addAll(scoreLabel, linesLabel, levelLabel, dialogueLabel);
+        contentBox.getChildren().addAll(scoreLabel, linesLabel, levelLabel, rotateLabel, dangerLabel, dialogueLabel);
         getChildren().add(contentBox);
 
         applyBackgroundImage(DEFAULT_BACKGROUND_IMAGE);
@@ -75,17 +86,33 @@ public class HudPane extends StackPane {
         levelLabel.setText("Level: " + level);
     }
 
-    public void updateDialogue(int score, int lines) {
-        if (score == lastDialogueScore && lines == lastDialogueLines) return;
-        lastDialogueScore = score;
-        lastDialogueLines = lines;
+    /** ワールド回転までの残りライン数を表示。残り1ラインで警告色になる */
+    public void updateRotateCountdown(int remaining) {
+        if (remaining == lastRotateRemaining) return;
+        lastRotateRemaining = remaining;
 
-        String text = """
-                現在の点数は %d 点。まだ足りないわね。
-                累計ラインは %d。次はどうする？
-                次のミノはこれよ。下にも表示してるけど。
-                焦らず積んでいきましょ。""".formatted(score, lines);
+        rotateLabel.setText("Spin in: " + remaining + (remaining == 1 ? " line" : " lines"));
+        rotateLabel.setStyle(remaining <= 1 ? ROTATE_STYLE_WARNING : ROTATE_STYLE_NORMAL);
+    }
+
+    /** 仮ゲームオーバーの残ライフを ●○ で常時表示する */
+    public void updateDangerGauge(int streak, int max) {
+        if (streak == lastDangerStreak) return;
+        lastDangerStreak = streak;
+
+        StringBuilder sb = new StringBuilder("Danger: ");
+        for (int i = 0; i < max; i++) sb.append(i < streak ? "●" : "○");
+        dangerLabel.setText(sb.toString());
+    }
+
+    /** キャラのセリフを表示する。軽いフェードインで「喋った感」を出す */
+    public void showDialogue(String text) {
+        if (text == null || text.isEmpty()) return;
         dialogueLabel.setText(text);
+        FadeTransition ft = new FadeTransition(Duration.millis(200), dialogueLabel);
+        ft.setFromValue(0.3);
+        ft.setToValue(1.0);
+        ft.play();
     }
 
     // ============================================================
@@ -106,6 +133,7 @@ public class HudPane extends StackPane {
         scoreLabel.setStyle(baseStyle + " -fx-text-fill: " + theme.textColor + ";");
         linesLabel.setStyle(baseStyle + " -fx-text-fill: " + theme.textColor + ";");
         levelLabel.setStyle(baseStyle + " -fx-text-fill: " + theme.accentColor + "; -fx-font-weight: bold;");
+        dangerLabel.setStyle(baseStyle + " -fx-text-fill: #ff8888;");
         dialogueLabel.setStyle(
             "-fx-font-size: 18px; -fx-font-family: 'Courier New'; -fx-line-spacing: 5px;" +
             " -fx-text-fill: " + theme.textColor + ";");

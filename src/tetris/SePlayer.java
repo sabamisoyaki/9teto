@@ -27,6 +27,7 @@ public class SePlayer {
         load(SeEvent.T_SPIN,       "se_tspin.wav");
         load(SeEvent.T_SPIN_MINI,  "se_tspin_mini.wav");
         load(SeEvent.REN,          "se_ren.wav");
+        load(SeEvent.TEMP_GAME_OVER, "se_pinch.wav");
     }
 
     private void load(SeEvent event, String filename) {

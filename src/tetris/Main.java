@@ -24,8 +24,10 @@ import javafx.animation.RotateTransition;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.geometry.Pos;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.effect.GaussianBlur;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -42,6 +44,8 @@ import tetris.controller.GameController;
 import tetris.model.Board;
 import tetris.model.GameConfig;
 import tetris.model.SeEvent;
+import tetris.view.DialogueBank;
+import tetris.view.DialogueTrigger;
 import tetris.view.EndCreditPane;
 import tetris.view.ConfigPane;
 import tetris.view.GameView;
@@ -134,6 +138,47 @@ public class Main extends Application {
     }
 
     // =====================================================
+    //  シーン遷移演出
+    // =====================================================
+    private boolean transitioning = false;
+
+    /** 現在のシーンを縮小＋フェードアウトさせてから次のシーンを表示する */
+    private void transitionOut(Runnable showNextScene) {
+        if (transitioning) return; // 連打による多重遷移を防ぐ
+        Scene current = primaryStage.getScene();
+        if (current == null) {
+            showNextScene.run();
+            return;
+        }
+        transitioning = true;
+        Parent root = current.getRoot();
+
+        ScaleTransition scale = new ScaleTransition(Duration.millis(500), root);
+        scale.setToX(0.92);
+        scale.setToY(0.92);
+        FadeTransition fade = new FadeTransition(Duration.millis(500), root);
+        fade.setToValue(0.0);
+
+        ParallelTransition out = new ParallelTransition(scale, fade);
+        out.setInterpolator(Interpolator.EASE_IN);
+        out.setOnFinished(e -> {
+            transitioning = false;
+            showNextScene.run();
+        });
+        out.play();
+    }
+
+    /** 新しいシーンをフェードインで表示する */
+    private void fadeInScene(Scene scene) {
+        Parent root = scene.getRoot();
+        root.setOpacity(0.0);
+        primaryStage.setScene(scene);
+        FadeTransition in = new FadeTransition(Duration.millis(350), root);
+        in.setToValue(1.0);
+        in.play();
+    }
+
+    // =====================================================
     //  スタート画面
     // =====================================================
     private Scene makeStartScene() {
@@ -147,12 +192,31 @@ public class Main extends Application {
         content.setAlignment(Pos.CENTER);
 
         Label title = new Label("TETRIS");
-        title.setStyle("-fx-font-size: 100px; -fx-font-weight: bold; -fx-text-fill: #f0f0f0; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 10, 0.0, 2, 2);");
+        // -fx-effect は setEffect(glow) と競合するためスタイル文字列には入れない
+        title.setStyle("-fx-font-size: 100px; -fx-font-weight: bold; -fx-text-fill: #f0f0f0; -fx-font-family: 'Courier New';");
+
+        DropShadow glow = new DropShadow(30, Color.web("#66bbff"));
+        glow.setSpread(0.25);
+        title.setEffect(glow);
+
+        // グロウの強弱を往復させて脈動させる
+        // （無限ループの Transition だが、シーンは毎回 make し直すためシーンごと GC される。
+        //   シーンをキャッシュする改修をする場合は stop 管理が必要になる）
+        Timeline glowPulse = new Timeline(
+            new KeyFrame(Duration.ZERO,         new KeyValue(glow.radiusProperty(), 18)),
+            new KeyFrame(Duration.seconds(1.6), new KeyValue(glow.radiusProperty(), 40)));
+        glowPulse.setCycleCount(Animation.INDEFINITE);
+        glowPulse.setAutoReverse(true);
+        glowPulse.play();
+
         TranslateTransition titleTt = new TranslateTransition(Duration.seconds(1), title);
         titleTt.setFromY(-200);
         titleTt.setToY(0);
         titleTt.setInterpolator(Interpolator.EASE_OUT);
-        titleTt.play();
+        FadeTransition titleFade = new FadeTransition(Duration.millis(600), title);
+        titleFade.setFromValue(0.0);
+        titleFade.setToValue(1.0);
+        new ParallelTransition(titleTt, titleFade).play();
 
         Label sub = new Label("Press SPACE to Start");
         sub.setStyle("-fx-font-size: 28px; -fx-text-fill: #aaddff; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 5, 0.0, 1, 1);");
@@ -189,7 +253,7 @@ public class Main extends Application {
 
     private void showStartScene() {
         fadeOutBgm(0.8, null);
-        primaryStage.setScene(makeStartScene());
+        fadeInScene(makeStartScene());
     }
 
     // =====================================================
@@ -227,7 +291,10 @@ public class Main extends Application {
         int cellSize = Math.min(
                 (int) (view.getPlayFieldPane().getPlayfieldCanvas().getWidth() / Board.COLS),
                 (int) (view.getPlayFieldPane().getPlayfieldCanvas().getHeight() / Board.ROWS));
-        Render renderer = new Render(cellSize);
+        Render renderer = new Render(
+                cellSize,
+                view.getPlayFieldPane().getPlayfieldCanvas().getWidth(),
+                view.getPlayFieldPane().getPlayfieldCanvas().getHeight());
         NextPane holdPane = view.getHoldPane();
         NextPane nextPane = view.getNextPane();
         HudPane hudPane = view.getHudPane();
@@ -281,9 +348,9 @@ public class Main extends Application {
                 hudPane,
                 keys,
                 sePlayer,
-                (finalScore, finalLines) -> showEndCreditScene(
+                (finalScore, finalLines) -> transitionOut(() -> showEndCreditScene(
                         DEFAULT_END_CREDIT_JSON,
-                        () -> showGameOverScene(finalScore, finalLines)),
+                        () -> showGameOverScene(finalScore, finalLines))),
                 () -> pauseOverlay.setVisible(true),
                 () -> pauseOverlay.setVisible(false),
                 showCountdown,
@@ -397,6 +464,27 @@ public class Main extends Application {
         content.getChildren().addAll(title, statsBox, hints);
         root.getChildren().addAll(overlay, content);
 
+        // GAME OVER → スコア → リトライ案内 の順に表示する
+        title.setTranslateY(-60);
+        title.setOpacity(0);
+        TranslateTransition titleSlide = new TranslateTransition(Duration.millis(450), title);
+        titleSlide.setToY(0);
+        FadeTransition titleFade = new FadeTransition(Duration.millis(450), title);
+        titleFade.setToValue(1.0);
+        new ParallelTransition(titleSlide, titleFade).play();
+
+        statsBox.setOpacity(0);
+        FadeTransition statsFade = new FadeTransition(Duration.millis(400), statsBox);
+        statsFade.setToValue(1.0);
+        statsFade.setDelay(Duration.millis(300));
+        statsFade.play();
+
+        hints.setOpacity(0);
+        FadeTransition hintsFade = new FadeTransition(Duration.millis(400), hints);
+        hintsFade.setToValue(1.0);
+        hintsFade.setDelay(Duration.millis(600));
+        hintsFade.play();
+
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.SPACE) {
@@ -415,20 +503,7 @@ public class Main extends Application {
 
         fadeOutBgm(1.2, null);
 
-        javafx.scene.Node root = primaryStage.getScene().getRoot();
-        ScaleTransition st = new ScaleTransition(Duration.seconds(1), root);
-        st.setToX(0.8);
-        st.setToY(0.8);
-        FadeTransition ft = new FadeTransition(Duration.seconds(1), root);
-        ft.setToValue(0);
-        ParallelTransition pt = new ParallelTransition(st, ft);
-        pt.setOnFinished(e -> {
-            root.setScaleX(1.0);
-            root.setScaleY(1.0);
-            root.setOpacity(1.0);
-            primaryStage.setScene(makeGameOverScene(score, lines));
-        });
-        pt.play();
+        transitionOut(() -> fadeInScene(makeGameOverScene(score, lines)));
     }
 
 
@@ -441,7 +516,15 @@ public class Main extends Application {
         Scene scene = new Scene(creditPane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
 
         Timeline timeline = creditPane.buildScrollAnimation();
-        Runnable completeAction = onComplete != null ? onComplete : this::showStartScene;
+        Runnable rawAction = onComplete != null ? onComplete : this::showStartScene;
+
+        // スキップ連打や「自然終了直後のキー入力」で二重実行されないよう1回だけ通す
+        boolean[] completed = {false};
+        Runnable completeAction = () -> {
+            if (completed[0]) return;
+            completed[0] = true;
+            rawAction.run();
+        };
 
         timeline.setOnFinished(e -> completeAction.run());
         timeline.play();
@@ -457,7 +540,7 @@ public class Main extends Application {
     }
 
     private void showEndCreditScene(String creditJson, Runnable onComplete) {
-        primaryStage.setScene(makeEndCreditScene(creditJson, onComplete));
+        fadeInScene(makeEndCreditScene(creditJson, onComplete));
     }
 
 
@@ -501,6 +584,7 @@ final class GameLoopTimer extends AnimationTimer {
     private boolean countingDown = false;
     private long countdownStartNanos = 0;
     private int lastShownCountdown = 4;
+    private long pauseStartNanos = 0;
 
     // ポーズ用コールバック
     private final Runnable showPauseOverlay;
@@ -513,6 +597,27 @@ final class GameLoopTimer extends AnimationTimer {
     private RotateTransition currentSpinAnim = null;
     private final List<Particle> particles = new ArrayList<>();
     private final Random rand = new Random();
+
+    // ライン消去フラッシュ（消去行だけを Canvas 上で白く光らせる）
+    private final List<Integer> flashRows = new ArrayList<>();
+    private long flashStartNanos = 0;
+    private int flashStrength = 1;
+    private static final long FLASH_DURATION_NANOS = 250_000_000L;
+
+    // レベルアップ検出（初期値 0 = 初期化フレームでポップアップを出さない）
+    private int lastLevel = 0;
+
+    // セリフ制御: 1フレーム内で最も優先度の高いトリガーだけを発話する
+    private final DialogueBank dialogue = new DialogueBank();
+    private long lastDialogueNanos = 0;
+    private long lastClearNanos = 0;
+    private boolean spokeGameStart = false;
+    private int prevLinesUntilRotate = Integer.MAX_VALUE;
+    private DialogueTrigger pendingTrigger = null;
+    private int pendingPriority = -1;
+    private boolean pendingForce = false;
+    private static final long DIALOGUE_COOLDOWN_NANOS = 2_000_000_000L; // 2秒
+    private static final long IDLE_THRESHOLD_NANOS = 20_000_000_000L;   // 20秒
 
     GameLoopTimer(
             GameController controller,
@@ -558,6 +663,7 @@ final class GameLoopTimer extends AnimationTimer {
         }
         isPaused = !isPaused;
         if (isPaused) {
+            pauseStartNanos = System.nanoTime();
             showPauseOverlay.run();
         } else {
             hidePauseOverlay.run();
@@ -582,6 +688,10 @@ final class GameLoopTimer extends AnimationTimer {
                 countingDown = false;
                 keys.clear();
                 hideCountdown.run();
+                // ポーズ時間ぶんタイマーを補正して、解除直後の即落下・即ロックを防ぐ
+                long pausedNanos = now - pauseStartNanos;
+                controller.shiftTimersAfterPause(pausedNanos);
+                lastFall = now;
             } else if (secondsLeft != lastShownCountdown) {
                 lastShownCountdown = secondsLeft;
                 showCountdown.accept(secondsLeft);
@@ -595,14 +705,19 @@ final class GameLoopTimer extends AnimationTimer {
             return;
         }
 
+        if (!spokeGameStart) {
+            spokeGameStart = true;
+            lastClearNanos = now;
+            proposeDialogue(DialogueTrigger.GAME_START, 110, true);
+        }
+
         int oldLines = controller.getLineCount();
         int oldScore = controller.getScore();
 
         controller.updateInput(keys, now);
 
-        long currentFallInterval = Math.max(100_000_000L, 1_000_000_000L - (controller.getLevel() - 1) * 100_000_000L);
-        if (now - lastFall > currentFallInterval) {
-            controller.softDrop();
+        if (now - lastFall > controller.getFallIntervalNanos()) {
+            controller.softDrop(false); // 自然落下（加点なし）
             lastFall = now;
         }
 
@@ -617,12 +732,38 @@ final class GameLoopTimer extends AnimationTimer {
             if (e == SeEvent.WORLD_ROTATE) {
                 triggerBoardSpinAnimation();
                 view.getPlayFieldPane().triggerShake();
+                proposeDialogue(DialogueTrigger.WORLD_ROTATE, 80, true);
             }
             if (e == SeEvent.LINE_CLEAR) {
-                spawnLineParticles();
+                // pollLastClearedLines() は呼ぶと内部リストがクリアされるため
+                // ここで一度だけ poll して各演出に共有する
+                List<Integer> rows = new ArrayList<>();
+                List<javafx.scene.paint.Color[]> colors = new ArrayList<>();
+                controller.getBoard().pollLastClearedLines(rows, colors);
+                spawnLineParticles(rows, colors);
+                startLineFlash(rows, linesCleared, now);
+                spawnScorePopup(linesCleared);
                 if (linesCleared >= 4) {
                     view.getPlayFieldPane().triggerShake();
                 }
+                lastClearNanos = now;
+                if (linesCleared >= 4) {
+                    proposeDialogue(DialogueTrigger.TETRIS, 90, true);
+                } else if (linesCleared >= 2) {
+                    proposeDialogue(DialogueTrigger.DOUBLE_TRIPLE, 70, false);
+                } else if (linesCleared == 1) {
+                    proposeDialogue(DialogueTrigger.SINGLE, 60, false);
+                }
+            }
+            if (e == SeEvent.TEMP_GAME_OVER) {
+                int streak = controller.getGameOverStreak();
+                int max = controller.getMaxGameOverStreak();
+                view.getPlayFieldPane().spawnScorePopup(
+                        "PINCH! " + streak + "/" + max, javafx.scene.paint.Color.ORANGERED);
+                view.getPlayFieldPane().triggerDangerFlash();
+                proposeDialogue(streak >= max - 1
+                        ? DialogueTrigger.PINCH_LAST
+                        : DialogueTrigger.PINCH, 100, true);
             }
             if (e == SeEvent.T_SPIN) {
                 hudPane.showTSpinPopup(false);
@@ -640,6 +781,7 @@ final class GameLoopTimer extends AnimationTimer {
 
         javafx.scene.canvas.GraphicsContext gc = view.getPlayFieldPane().getPlayfieldCanvas().getGraphicsContext2D();
         renderer.drawAll(gc, controller.getBoard(), controller.getCurrent(), controller.getGhost());
+        drawLineFlash(gc, now);
 
         Iterator<Particle> it = particles.iterator();
         while (it.hasNext()) {
@@ -652,6 +794,9 @@ final class GameLoopTimer extends AnimationTimer {
         hudPane.updateScore(controller.getScore());
         hudPane.updateLines(controller.getLineCount());
         hudPane.updateLevel(controller.getLevel());
+        hudPane.updateRotateCountdown(controller.getLinesUntilRotate());
+        hudPane.updateDangerGauge(
+                controller.getGameOverStreak(), controller.getMaxGameOverStreak());
 
         renderer.drawNext(
                 holdPane.getNextCanvas().getGraphicsContext2D(),
@@ -661,7 +806,31 @@ final class GameLoopTimer extends AnimationTimer {
                 nextPane.getNextCanvas().getGraphicsContext2D(),
                 controller.getNext(), 0, 0);
 
-        hudPane.updateDialogue(controller.getScore(), controller.getLineCount());
+        // レベルアップ検出（初期化フレームは lastLevel == 0 のため除外）
+        int level = controller.getLevel();
+        if (level != lastLevel) {
+            if (lastLevel > 0) {
+                view.getPlayFieldPane().spawnScorePopup(
+                        "LEVEL " + level + "!", javafx.scene.paint.Color.LIGHTGREEN);
+                proposeDialogue(DialogueTrigger.LEVEL_UP, 50, false);
+            }
+            lastLevel = level;
+        }
+
+        // 回転まで残り1ラインになった瞬間に予告セリフ
+        int linesUntilRotate = controller.getLinesUntilRotate();
+        if (linesUntilRotate == 1 && prevLinesUntilRotate != 1) {
+            proposeDialogue(DialogueTrigger.ROTATE_SOON, 40, false);
+        }
+        prevLinesUntilRotate = linesUntilRotate;
+
+        // 20秒間ライン消去が無ければ IDLE セリフ（発火後はタイムスタンプをリセット）
+        if (now - lastClearNanos > IDLE_THRESHOLD_NANOS) {
+            proposeDialogue(DialogueTrigger.IDLE, 10, false);
+            lastClearNanos = now;
+        }
+
+        flushDialogue(now);
 
         int worldRotateStep = controller.getWorldRotateStep();
         if (worldRotateStep != lastWorldRotateStep) {
@@ -669,6 +838,32 @@ final class GameLoopTimer extends AnimationTimer {
             view.applyTheme(UiTheme.forStep(worldRotateStep));
             lastWorldRotateStep = worldRotateStep;
         }
+    }
+
+    /**
+     * このフレームで発話したいセリフを登録する。
+     * 同一フレームに複数のトリガーが立った場合は優先度が最も高いものだけ残す。
+     */
+    private void proposeDialogue(DialogueTrigger trigger, int priority, boolean force) {
+        if (priority > pendingPriority) {
+            pendingTrigger = trigger;
+            pendingPriority = priority;
+            pendingForce = force;
+        } else if (priority == pendingPriority) {
+            pendingForce |= force;
+        }
+    }
+
+    /** フレーム末尾で1回だけ呼ぶ。クールダウン中は force 指定のセリフのみ通す */
+    private void flushDialogue(long now) {
+        if (pendingTrigger == null) return;
+        if (pendingForce || now - lastDialogueNanos >= DIALOGUE_COOLDOWN_NANOS) {
+            hudPane.showDialogue(dialogue.pick(pendingTrigger));
+            lastDialogueNanos = now;
+        }
+        pendingTrigger = null;
+        pendingPriority = -1;
+        pendingForce = false;
     }
 
     private void triggerBoardSpinAnimation() {
@@ -686,24 +881,18 @@ final class GameLoopTimer extends AnimationTimer {
         currentSpinAnim = rt;
     }
 
-    private void spawnLineParticles() {
-        List<Integer> rows = new ArrayList<>();
-        List<javafx.scene.paint.Color[]> colors = new ArrayList<>();
-        controller.getBoard().pollLastClearedLines(rows, colors);
-
-        view.getPlayFieldPane().triggerFlash(rows.size());
-
+    private void spawnLineParticles(List<Integer> rows, List<javafx.scene.paint.Color[]> colors) {
         int cs = renderer.getCellSize();
 
         for (int i = 0; i < rows.size(); i++) {
             int row = rows.get(i);
             javafx.scene.paint.Color[] lineColors = colors.get(i);
-            double cy = row * cs + cs * 0.5;
+            double cy = renderer.toPixelY(row) + cs * 0.5;
 
             for (int col = 0; col < Board.COLS; col++) {
                 javafx.scene.paint.Color color = lineColors[col];
                 if (color == null) color = javafx.scene.paint.Color.WHITE;
-                double cx = col * cs + cs * 0.5;
+                double cx = renderer.toPixelX(col) + cs * 0.5;
 
                 for (int k = 0; k < 5; k++) {
                     double angle = rand.nextDouble() * 2 * Math.PI;
@@ -717,6 +906,47 @@ final class GameLoopTimer extends AnimationTimer {
         }
     }
 
+    private void startLineFlash(List<Integer> rows, int cleared, long now) {
+        flashRows.clear();
+        flashRows.addAll(rows);
+        flashStartNanos = now;
+        flashStrength = Math.max(1, Math.min(4, cleared));
+    }
+
+    private void drawLineFlash(javafx.scene.canvas.GraphicsContext gc, long now) {
+        if (flashRows.isEmpty()) return;
+        double t = (now - flashStartNanos) / (double) FLASH_DURATION_NANOS;
+        if (t >= 1.0) {
+            flashRows.clear();
+            return;
+        }
+
+        // 消去ライン数で強度を変える: 1ライン=0.5, 4ライン=0.95
+        double peak = 0.35 + 0.15 * flashStrength;
+        double alpha = peak * (1.0 - t);
+
+        gc.setFill(javafx.scene.paint.Color.rgb(255, 255, 255, alpha));
+        int cs = renderer.getCellSize();
+        for (int row : flashRows) {
+            gc.fillRect(renderer.toPixelX(0), renderer.toPixelY(row),
+                    (double) cs * Board.COLS, cs);
+        }
+    }
+
+    private void spawnScorePopup(int cleared) {
+        String text = switch (cleared) {
+            case 1 -> "+100";
+            case 2 -> "+300  DOUBLE!";
+            case 3 -> "+500  TRIPLE!";
+            case 4 -> "+800  TETRIS!!";
+            default -> "+0";
+        };
+        javafx.scene.paint.Color color = cleared >= 4 ? javafx.scene.paint.Color.GOLD
+                : cleared >= 2 ? javafx.scene.paint.Color.LIGHTSKYBLUE
+                : javafx.scene.paint.Color.WHITE;
+        view.getPlayFieldPane().spawnScorePopup(text, color);
+    }
+
     private void spawnHardDropTrail() {
         List<int[]> trail = controller.drainHardDropTrail();
         javafx.scene.paint.Color trailColor = controller.getLastHardDropColor();
@@ -726,8 +956,8 @@ final class GameLoopTimer extends AnimationTimer {
         javafx.scene.paint.Color bright = trailColor.deriveColor(0, 0.5, 2.0, 0.85);
 
         for (int[] cell : trail) {
-            double cx = cell[1] * cs + cs * 0.5;
-            double cy = cell[0] * cs + cs * 0.5;
+            double cx = renderer.toPixelX(cell[1]) + cs * 0.5;
+            double cy = renderer.toPixelY(cell[0]) + cs * 0.5;
             particles.add(new Particle(cx, cy, 0, -0.3, bright, 10 + rand.nextInt(6)));
         }
     }

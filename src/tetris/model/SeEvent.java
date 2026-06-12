@@ -10,5 +10,6 @@ public enum SeEvent {
     HOLD,
     T_SPIN,
     T_SPIN_MINI,
-    REN
+    REN,
+    TEMP_GAME_OVER
 }

@@ -26,6 +26,7 @@ public final class SeGenerator {
             checkAndGenerate(audioDir.resolve("se_tspin.wav"),        SeType.T_SPIN);
             checkAndGenerate(audioDir.resolve("se_tspin_mini.wav"),   SeType.T_SPIN_MINI);
             checkAndGenerate(audioDir.resolve("se_ren.wav"),          SeType.REN);
+            checkAndGenerate(audioDir.resolve("se_pinch.wav"),        SeType.PINCH);
         } catch (IOException e) {
             System.err.println("[SE Generator] Failed to create directories or write files: " + e.getMessage());
         }
@@ -45,7 +46,7 @@ public final class SeGenerator {
     }
 
     private enum SeType {
-        MOVE, ROTATE, HARD_DROP, LOCK, CLEAR, WORLD_ROTATE, HOLD, T_SPIN, T_SPIN_MINI, REN
+        MOVE, ROTATE, HARD_DROP, LOCK, CLEAR, WORLD_ROTATE, HOLD, T_SPIN, T_SPIN_MINI, REN, PINCH
     }
 
     private static byte[] generateWavData(SeType type) {
@@ -60,6 +61,7 @@ public final class SeGenerator {
             case T_SPIN -> 0.50;
             case T_SPIN_MINI -> 0.30;
             case REN -> 0.25;
+            case PINCH -> 0.40;
         };
 
         int numSamples = (int) (SAMPLE_RATE * duration);
@@ -150,6 +152,16 @@ public final class SeGenerator {
                     double env = Math.sin(t / duration * Math.PI);
                     sampleValue = (Math.sin(2 * Math.PI * freq * t)
                                  + 0.2 * Math.sin(2 * Math.PI * freq * 1.5 * t)) * env;
+                }
+                case PINCH -> {
+                    // 警告音: 下降する2音ブザー
+                    double nd = duration / 2.0;
+                    int ni = Math.min(1, (int) (t / nd));
+                    double[] freqs = { 440.0, 311.13 }; // A4 → E♭4 (減5度の不穏な響き)
+                    double noteT2 = t - ni * nd;
+                    double env = Math.exp(-noteT2 * 8);
+                    sampleValue = (Math.sin(2 * Math.PI * freqs[ni] * t)
+                                 + 0.4 * Math.sin(2 * Math.PI * freqs[ni] * 0.5 * t)) * env;
                 }
             }
 
