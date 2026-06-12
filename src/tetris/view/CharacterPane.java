@@ -21,7 +21,8 @@ public class CharacterPane extends StackPane {
     private static final Path ROTATE_CHARACTER_IMAGE_1 = ResourcePath.of("images", "character-rotate-1.png");
     private static final Path ROTATE_CHARACTER_IMAGE_2 = ResourcePath.of("images", "character-rotate-2.png");
     private static final Path ROTATE_CHARACTER_IMAGE_3 = ResourcePath.of("images", "character-rotate-3.png");
-    private static final Path CHARACTER_BG_IMAGE = ResourcePath.of("images", "character-bg.png");
+    private static final Path CHARACTER_BG_IMAGE      = ResourcePath.of("images", "character-bg.png");
+    private static final Path CHARACTER_CLOSEUP_IMAGE = ResourcePath.of("images", "character-closeup-bg.png");
     private static final double PANE_WIDTH = 480;
     private static final double PANE_HEIGHT = 1080;
     private static final double CHARACTER_SIZE = 1080;
@@ -40,12 +41,13 @@ public class CharacterPane extends StackPane {
         characterView.setPreserveRatio(true);
         characterView.setSmooth(true);
         characterView.setTranslateX(300);
+        characterView.setVisible(true);
 
         getChildren().add(characterView);
         StackPane.setAlignment(characterView, Pos.BOTTOM_RIGHT);
 
         applyCharacterImage(DEFAULT_CHARACTER_IMAGE);
-        applyBackgroundImage(CHARACTER_BG_IMAGE);
+        applyBackgroundImage(CHARACTER_CLOSEUP_IMAGE);
     }
 
     public ImageView getCharacterView() {

@@ -114,23 +114,24 @@ public class Render {
 
 
     // ===========================
-    //       ゴースト描画
+    //       ゴースト描画（輪郭のみ）
     // ===========================
     public void drawGhost(GraphicsContext gc, Tetromino g) {
         if (g == null) return;
 
-        gc.setGlobalAlpha(0.25);
-        gc.setFill(Color.GRAY);
+        Color ghostColor = g.getColor().deriveColor(0, 0.8, 1.4, 0.75);
+        gc.setStroke(ghostColor);
+        gc.setLineWidth(2.0);
 
         for (int r = 0; r < 4; r++) {
             for (int c = 0; c < 4; c++) {
                 if (g.getShape()[r][c] == 1) {
-                    drawCell(gc, g.getRow() + r, g.getCol() + c);
+                    int x = (g.getCol() + c) * cellSize;
+                    int y = (g.getRow() + r) * cellSize;
+                    gc.strokeRect(x + 1, y + 1, cellSize - 3, cellSize - 3);
                 }
             }
         }
-
-        gc.setGlobalAlpha(1.0);
     }
 
     // ===========================

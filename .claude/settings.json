@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git branch *)",
+      "Bash(git fetch *)",
+      "Bash(\"/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe\" -NoProfile -Command \"Compress-Archive -Path 'H:\\\\\\\\9pazzle\\\\\\\\dist\\\\\\\\Tetris' -DestinationPath 'H:\\\\\\\\9pazzle\\\\\\\\dist\\\\\\\\Tetris.zip' -Force\")"
+    ]
+  }
+}

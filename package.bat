@@ -91,10 +91,16 @@ rem ---- Step 5: Cleanup ----
 echo [5/5] Cleaning up...
 rmdir /s /q "package-input"
 
+rem ---- Step 6: Zip ----
+echo [6/6] Creating zip archive...
+if exist "dist\Tetris.zip" del /f /q "dist\Tetris.zip"
+powershell -NoProfile -Command "Compress-Archive -Path 'dist\Tetris' -DestinationPath 'dist\Tetris.zip'"
+if errorlevel 1 ( echo [ERROR] Zip creation failed. & pause & goto :eof )
+
 echo.
 echo ==========================================
 echo  DONE!
 echo  Executable : dist\Tetris\Tetris.exe
-echo  Share the entire  dist\Tetris\  folder.
+echo  Zip        : dist\Tetris.zip
 echo ==========================================
 pause

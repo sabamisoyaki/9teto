@@ -19,6 +19,7 @@ public class NextPane extends StackPane {
     private final Canvas nextCanvas;
     private final int nextCellSize;
     private final ImageView backgroundView;
+    private final Label titleLabel;
 
     public NextPane(double width, double height) {
         this(width, height, "NEXT");
@@ -40,7 +41,7 @@ public class NextPane extends StackPane {
         nextCanvas.setHeight(height);
         nextCellSize = (int) Math.min(nextCanvas.getWidth() / 4, nextCanvas.getHeight() / 4);
 
-        Label titleLabel = new Label(title);
+        titleLabel = new Label(title);
         titleLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #dcecff; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 4, 0.0, 1, 1);");
         StackPane.setAlignment(titleLabel, Pos.TOP_LEFT);
         StackPane.setMargin(titleLabel, new Insets(8, 0, 0, 12));
@@ -48,6 +49,25 @@ public class NextPane extends StackPane {
         getChildren().addAll(backgroundView, nextCanvas, titleLabel);
 
         loadBackgroundImage(DEFAULT_BACKGROUND_IMAGE);
+    }
+
+    // ============================================================
+    //  テーマ適用（ワールドローテートごとに呼ばれる）
+    // ============================================================
+    public void applyTheme(UiTheme theme) {
+        setStyle(
+            "-fx-background-color: " + theme.bgColor + "; " +
+            "-fx-border-color: " + theme.borderColor + "; " +
+            "-fx-border-width: 2px; " +
+            "-fx-border-radius: 5px; " +
+            "-fx-background-radius: 5px;");
+
+        titleLabel.setStyle(
+            "-fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Courier New';" +
+            " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 4, 0.0, 1, 1);" +
+            " -fx-text-fill: " + theme.accentColor + ";");
+
+        // ここに追加カスタマイズを書く
     }
 
     public Canvas getNextCanvas() {

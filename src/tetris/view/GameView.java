@@ -88,4 +88,16 @@ public class GameView {
     public DeviceFramePane getPlayFieldPane()    { return playFieldPane; }
     public CharacterPane getCharacterPane()      { return characterPane; }
     public HudPane getHudPane()                  { return hudPane; }
+
+    /**
+     * ワールドローテート時に全 UI へ一括でテーマを適用する。
+     * 各 Pane の applyTheme() に具体的な変更を追記していくこと。
+     */
+    public void applyTheme(UiTheme theme) {
+        hudPane.applyTheme(theme);
+        playFieldPane.applyTheme(theme);
+        holdPane.applyTheme(theme);
+        nextPane.applyTheme(theme);
+        // ここに追加対象（CharacterPane のスタイルなど）を書く
+    }
 }

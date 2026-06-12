@@ -101,7 +101,6 @@ public class Board {
             // board[r][0] = null（デフォルト初期化済み）
         }
 
-        System.out.println("==== WORLD ROTATED ====");
     }
 
     // --- ライン消去 ---
@@ -145,6 +144,11 @@ public class Board {
         outColors.addAll(lastClearedColors);
         lastClearedRows.clear();
         lastClearedColors.clear();
+    }
+
+    public boolean isBlocked(int row, int col) {
+        if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return true;
+        return board[row][col] != null;
     }
 
     public boolean canPlace(int[][] shape, int row, int col) {

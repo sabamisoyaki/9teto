@@ -9,11 +9,17 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
+import javafx.animation.ScaleTransition;
+import javafx.animation.ParallelTransition;
+import javafx.animation.TranslateTransition;
 import javafx.animation.Interpolator;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
 import javafx.animation.RotateTransition;
 import javafx.animation.Timeline;
 import javafx.application.Application;
@@ -23,7 +29,6 @@ import javafx.scene.control.Label;
 import javafx.scene.effect.GaussianBlur;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.canvas.Canvas;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -33,7 +38,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import tetris.SePlayer;
 import tetris.controller.GameController;
 import tetris.model.Board;
 import tetris.model.GameConfig;
@@ -45,6 +49,7 @@ import tetris.view.HudPane;
 import tetris.view.NextPane;
 import tetris.view.Particle;
 import tetris.view.Render;
+import tetris.view.UiTheme;
 
 public class Main extends Application {
 
@@ -52,7 +57,6 @@ public class Main extends Application {
     private static final int WINDOW_WIDTH = 1920;
     private static final int WINDOW_HEIGHT = 1080;
     private static final Path BGM_PATH = ResourcePath.of("audio", "bgm.wav");
-    private static final long AUTO_FALL_INTERVAL_NANOS = 300_000_000L;
     private static final double BGM_MAX_VOLUME = 0.35;
     private MediaPlayer bgmPlayer;
     private final GameConfig config = new GameConfig();
@@ -78,6 +82,7 @@ public class Main extends Application {
         this.primaryStage = stage;
         stage.setTitle("TETRIS");
         stage.setResizable(false);
+        config.load();
         initBgmPlayer();
         showStartScene();
         stage.show();
@@ -110,12 +115,22 @@ public class Main extends Application {
         }
     }
 
-    private void stopBgm() {
-        if (bgmPlayer == null) {
+    private void fadeOutBgm(double durationSecs, Runnable onFinished) {
+        if (bgmPlayer == null || bgmPlayer.getStatus() != MediaPlayer.Status.PLAYING) {
+            if (onFinished != null) onFinished.run();
             return;
         }
-        bgmPlayer.stop();
-        bgmPlayer.seek(Duration.ZERO);
+        double startVol = bgmPlayer.getVolume();
+        Timeline fade = new Timeline(
+            new KeyFrame(Duration.ZERO, new KeyValue(bgmPlayer.volumeProperty(), startVol)),
+            new KeyFrame(Duration.seconds(durationSecs), new KeyValue(bgmPlayer.volumeProperty(), 0.0))
+        );
+        fade.setOnFinished(e -> {
+            bgmPlayer.stop();
+            bgmPlayer.seek(Duration.ZERO);
+            if (onFinished != null) onFinished.run();
+        });
+        fade.play();
     }
 
     // =====================================================
@@ -133,6 +148,11 @@ public class Main extends Application {
 
         Label title = new Label("TETRIS");
         title.setStyle("-fx-font-size: 100px; -fx-font-weight: bold; -fx-text-fill: #f0f0f0; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 10, 0.0, 2, 2);");
+        TranslateTransition titleTt = new TranslateTransition(Duration.seconds(1), title);
+        titleTt.setFromY(-200);
+        titleTt.setToY(0);
+        titleTt.setInterpolator(Interpolator.EASE_OUT);
+        titleTt.play();
 
         Label sub = new Label("Press SPACE to Start");
         sub.setStyle("-fx-font-size: 28px; -fx-text-fill: #aaddff; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 5, 0.0, 1, 1);");
@@ -147,7 +167,11 @@ public class Main extends Application {
         Label configHint = new Label("C  Config");
         configHint.setStyle("-fx-font-size: 20px; -fx-text-fill: #6688aa; -fx-font-family: 'Courier New';");
 
-        content.getChildren().addAll(title, sub, configHint);
+        int hs = config.getHighScore();
+        Label highScoreLabel = new Label(hs > 0 ? "Best: " + hs : "");
+        highScoreLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #99ccff; -fx-font-family: 'Courier New';");
+
+        content.getChildren().addAll(title, sub, configHint, highScoreLabel);
         root.getChildren().addAll(overlay, content);
 
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -164,7 +188,7 @@ public class Main extends Application {
     }
 
     private void showStartScene() {
-        stopBgm();
+        fadeOutBgm(0.8, null);
         primaryStage.setScene(makeStartScene());
     }
 
@@ -183,6 +207,7 @@ public class Main extends Application {
         Scene scene = new Scene(pane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ESCAPE) {
+                config.save();
                 showStartScene();
             }
         });
@@ -197,7 +222,6 @@ public class Main extends Application {
     //  ゲーム画面
     // =====================================================
     private Scene makeGameScene() {
-
         GameView view = new GameView();
         GameController controller = new GameController();
         int cellSize = Math.min(
@@ -208,15 +232,20 @@ public class Main extends Application {
         NextPane nextPane = view.getNextPane();
         HudPane hudPane = view.getHudPane();
 
-        Scene scene = new Scene(view.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
+        // ポーズオーバーレイとカウントダウンラベル
+        StackPane pauseOverlay = buildPauseOverlay();
+        pauseOverlay.setVisible(false);
 
-        // キー入力管理
+        Label countdownLabel = new Label();
+        countdownLabel.setStyle(
+            "-fx-font-size: 160px; -fx-font-weight: bold; -fx-text-fill: #ffffff;" +
+            "-fx-font-family: 'Courier New';" +
+            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.95), 20, 0.0, 0, 0);");
+        countdownLabel.setVisible(false);
+
+        StackPane gameRoot = new StackPane(view.getRoot(), pauseOverlay, countdownLabel);
+
         Set<KeyCode> keys = new HashSet<>();
-        scene.setOnKeyPressed(e -> {
-            keys.add(e.getCode());
-        });
-        scene.setOnKeyReleased(e -> keys.remove(e.getCode()));
-
         // 初回描画
         renderer.drawAll(
                 view.getPlayFieldPane().getPlayfieldCanvas().getGraphicsContext2D(),
@@ -225,19 +254,25 @@ public class Main extends Application {
                 controller.getGhost());
         renderer.drawNext(
                 holdPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getHold(),
-                0,
-                0,
-                !controller.canHold());
+                controller.getHold(), 0, 0, !controller.canHold());
         renderer.drawNext(
                 nextPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getNext(),
-                0,
-                0);
+                controller.getNext(), 0, 0);
 
         SePlayer sePlayer = new SePlayer(config);
 
-        AnimationTimer timer = new GameLoopTimer(
+        Consumer<Integer> showCountdown = n -> {
+            countdownLabel.setText(String.valueOf(n));
+            countdownLabel.setVisible(true);
+            ScaleTransition st = new ScaleTransition(Duration.millis(250), countdownLabel);
+            st.setFromX(1.6);
+            st.setFromY(1.6);
+            st.setToX(1.0);
+            st.setToY(1.0);
+            st.play();
+        };
+
+        GameLoopTimer timer = new GameLoopTimer(
                 controller,
                 view,
                 renderer,
@@ -246,13 +281,61 @@ public class Main extends Application {
                 hudPane,
                 keys,
                 sePlayer,
-                AUTO_FALL_INTERVAL_NANOS,
                 (finalScore, finalLines) -> showEndCreditScene(
                         DEFAULT_END_CREDIT_JSON,
-                        () -> showGameOverScene(finalScore, finalLines)));
+                        () -> showGameOverScene(finalScore, finalLines)),
+                () -> pauseOverlay.setVisible(true),
+                () -> pauseOverlay.setVisible(false),
+                showCountdown,
+                () -> countdownLabel.setVisible(false));
+
+        Scene scene = new Scene(gameRoot, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        scene.setOnKeyReleased(e -> keys.remove(e.getCode()));
+        scene.setOnKeyPressed(e -> {
+            KeyCode code = e.getCode();
+            if (code == KeyCode.ESCAPE || code == KeyCode.P) {
+                timer.togglePause();
+            } else if (timer.isGamePaused()) {
+                if (code == KeyCode.SPACE) {
+                    timer.togglePause();
+                } else if (code == KeyCode.R) {
+                    timer.stop();
+                    showGameScene();
+                } else if (code == KeyCode.T) {
+                    timer.stop();
+                    showStartScene();
+                }
+            } else if (!timer.isCountingDown()) {
+                keys.add(code);
+            }
+        });
 
         timer.start();
         return scene;
+    }
+
+    private StackPane buildPauseOverlay() {
+        Rectangle bg = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(0, 0, 10, 0.82));
+
+        VBox menu = new VBox(28);
+        menu.setAlignment(Pos.CENTER);
+
+        Label title = new Label("PAUSED");
+        title.setStyle("-fx-font-size: 80px; -fx-font-weight: bold; -fx-text-fill: #cce0ff; -fx-font-family: 'Courier New';");
+
+        String hintStyle = "-fx-font-size: 26px; -fx-text-fill: #88aacc; -fx-font-family: 'Courier New';";
+        Label h1 = new Label("SPACE / P  ·  Resume");
+        Label h2 = new Label("R          ·  New Game");
+        Label h3 = new Label("T          ·  Title");
+        h1.setStyle(hintStyle);
+        h2.setStyle(hintStyle);
+        h3.setStyle(hintStyle);
+
+        menu.getChildren().addAll(title, h1, h2, h3);
+
+        StackPane overlay = new StackPane(bg, menu);
+        return overlay;
     }
 
     private void showGameScene() {
@@ -270,7 +353,7 @@ public class Main extends Application {
 
         Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(30, 0, 10, 0.7));
 
-        VBox content = new VBox(50);
+        VBox content = new VBox(40);
         content.setAlignment(Pos.CENTER);
 
         Label title = new Label("GAME OVER");
@@ -279,18 +362,29 @@ public class Main extends Application {
         VBox statsBox = new VBox(15);
         statsBox.setAlignment(Pos.CENTER);
         statsBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-padding: 30px 60px; -fx-border-color: #557788; -fx-border-width: 1px; -fx-border-radius: 5px; -fx-background-radius: 5px;");
-        statsBox.setMaxWidth(500);
+        statsBox.setMaxWidth(560);
 
-        Label scoreLabel = new Label("Score: " + score);
+        Label scoreLabel = new Label("Score:      " + score);
         scoreLabel.setStyle("-fx-font-size: 32px; -fx-text-fill: white; -fx-font-family: 'Courier New';");
 
-        Label linesLabel = new Label("Lines: " + lines);
+        Label linesLabel = new Label("Lines:      " + lines);
         linesLabel.setStyle("-fx-font-size: 32px; -fx-text-fill: white; -fx-font-family: 'Courier New';");
 
-        statsBox.getChildren().addAll(scoreLabel, linesLabel);
+        int hs = config.getHighScore();
+        boolean isNewRecord = score == hs && score > 0;
+        String hsText = "High Score: " + hs + (isNewRecord ? "  ★ NEW!" : "");
+        Label highScoreLabel = new Label(hsText);
+        highScoreLabel.setStyle("-fx-font-size: 32px; -fx-text-fill: " + (isNewRecord ? "#ffd700" : "#99ccff") + "; -fx-font-family: 'Courier New';");
 
-        Label retry = new Label("Press SPACE to Retry");
-        retry.setStyle("-fx-font-size: 24px; -fx-text-fill: #aaddff; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 5, 0.0, 1, 1);");
+        statsBox.getChildren().addAll(scoreLabel, linesLabel, highScoreLabel);
+
+        VBox hints = new VBox(10);
+        hints.setAlignment(Pos.CENTER);
+
+        Label retry = new Label("SPACE  ·  Retry");
+        retry.setStyle("-fx-font-size: 24px; -fx-text-fill: #aaddff; -fx-font-family: 'Courier New';");
+        Label titleHint = new Label("T      ·  Title");
+        titleHint.setStyle("-fx-font-size: 24px; -fx-text-fill: #7799bb; -fx-font-family: 'Courier New';");
 
         FadeTransition fade = new FadeTransition(Duration.seconds(0.8), retry);
         fade.setFromValue(1.0);
@@ -299,24 +393,42 @@ public class Main extends Application {
         fade.setAutoReverse(true);
         fade.play();
 
-        content.getChildren().addAll(title, statsBox, retry);
+        hints.getChildren().addAll(retry, titleHint);
+        content.getChildren().addAll(title, statsBox, hints);
         root.getChildren().addAll(overlay, content);
 
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
-
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.SPACE) {
                 showGameScene();
+            } else if (e.getCode() == KeyCode.T) {
+                showStartScene();
             }
         });
 
         return scene;
     }
 
-
     private void showGameOverScene(int score, int lines) {
-        stopBgm();
-        primaryStage.setScene(makeGameOverScene(score, lines));
+        config.updateHighScore(score);
+        config.save();
+
+        fadeOutBgm(1.2, null);
+
+        javafx.scene.Node root = primaryStage.getScene().getRoot();
+        ScaleTransition st = new ScaleTransition(Duration.seconds(1), root);
+        st.setToX(0.8);
+        st.setToY(0.8);
+        FadeTransition ft = new FadeTransition(Duration.seconds(1), root);
+        ft.setToValue(0);
+        ParallelTransition pt = new ParallelTransition(st, ft);
+        pt.setOnFinished(e -> {
+            root.setScaleX(1.0);
+            root.setScaleY(1.0);
+            root.setOpacity(1.0);
+            primaryStage.setScene(makeGameOverScene(score, lines));
+        });
+        pt.play();
     }
 
 
@@ -359,7 +471,7 @@ public class Main extends Application {
         ImageView imageView = new ImageView(image);
         imageView.setFitWidth(WINDOW_WIDTH);
         imageView.setFitHeight(WINDOW_HEIGHT);
-        
+
         if (applyBlur) {
             imageView.setEffect(new GaussianBlur(5));
         }
@@ -382,8 +494,19 @@ final class GameLoopTimer extends AnimationTimer {
     private final HudPane hudPane;
     private final Set<KeyCode> keys;
     private final SePlayer sePlayer;
-    private final long autoFallIntervalNanos;
     private final BiConsumer<Integer, Integer> gameOverHandler;
+
+    // ポーズ状態
+    private boolean isPaused = false;
+    private boolean countingDown = false;
+    private long countdownStartNanos = 0;
+    private int lastShownCountdown = 4;
+
+    // ポーズ用コールバック
+    private final Runnable showPauseOverlay;
+    private final Runnable hidePauseOverlay;
+    private final Consumer<Integer> showCountdown;
+    private final Runnable hideCountdown;
 
     private long lastFall = 0;
     private int lastWorldRotateStep = -1;
@@ -400,8 +523,11 @@ final class GameLoopTimer extends AnimationTimer {
             HudPane hudPane,
             Set<KeyCode> keys,
             SePlayer sePlayer,
-            long autoFallIntervalNanos,
-            BiConsumer<Integer, Integer> gameOverHandler) {
+            BiConsumer<Integer, Integer> gameOverHandler,
+            Runnable showPauseOverlay,
+            Runnable hidePauseOverlay,
+            Consumer<Integer> showCountdown,
+            Runnable hideCountdown) {
         this.controller = controller;
         this.view = view;
         this.renderer = renderer;
@@ -410,32 +536,105 @@ final class GameLoopTimer extends AnimationTimer {
         this.hudPane = hudPane;
         this.keys = keys;
         this.sePlayer = sePlayer;
-        this.autoFallIntervalNanos = autoFallIntervalNanos;
         this.gameOverHandler = gameOverHandler;
+        this.showPauseOverlay = showPauseOverlay;
+        this.hidePauseOverlay = hidePauseOverlay;
+        this.showCountdown = showCountdown;
+        this.hideCountdown = hideCountdown;
+    }
+
+    public boolean isGamePaused()  { return isPaused; }
+    public boolean isCountingDown() { return countingDown; }
+
+    public void togglePause() {
+        if (controller.isTrueGameOver()) return;
+        if (countingDown) {
+            // カウントダウン中に再度ポーズ → ポーズに戻る
+            countingDown = false;
+            isPaused = true;
+            hideCountdown.run();
+            showPauseOverlay.run();
+            return;
+        }
+        isPaused = !isPaused;
+        if (isPaused) {
+            showPauseOverlay.run();
+        } else {
+            hidePauseOverlay.run();
+            startCountdown();
+        }
+    }
+
+    private void startCountdown() {
+        countingDown = true;
+        countdownStartNanos = System.nanoTime();
+        lastShownCountdown = 4;
     }
 
     @Override
     public void handle(long now) {
+        if (isPaused) return;
+
+        if (countingDown) {
+            long elapsed = now - countdownStartNanos;
+            int secondsLeft = 3 - (int) (elapsed / 1_000_000_000L);
+            if (secondsLeft <= 0) {
+                countingDown = false;
+                keys.clear();
+                hideCountdown.run();
+            } else if (secondsLeft != lastShownCountdown) {
+                lastShownCountdown = secondsLeft;
+                showCountdown.accept(secondsLeft);
+            }
+            return;
+        }
+
         if (controller.isTrueGameOver()) {
             stop();
             gameOverHandler.accept(controller.getScore(), controller.getLineCount());
             return;
         }
 
+        int oldLines = controller.getLineCount();
+        int oldScore = controller.getScore();
+
         controller.updateInput(keys, now);
 
-        if (now - lastFall > autoFallIntervalNanos) {
+        long currentFallInterval = Math.max(100_000_000L, 1_000_000_000L - (controller.getLevel() - 1) * 100_000_000L);
+        if (now - lastFall > currentFallInterval) {
             controller.softDrop();
             lastFall = now;
+        }
+
+        int linesCleared = controller.getLineCount() - oldLines;
+        int newScore = controller.getScore();
+        if (newScore > oldScore) {
+            hudPane.showScorePopup(newScore - oldScore);
         }
 
         for (SeEvent e : controller.drainEvents()) {
             sePlayer.play(e);
             if (e == SeEvent.WORLD_ROTATE) {
                 triggerBoardSpinAnimation();
+                view.getPlayFieldPane().triggerShake();
             }
             if (e == SeEvent.LINE_CLEAR) {
                 spawnLineParticles();
+                if (linesCleared >= 4) {
+                    view.getPlayFieldPane().triggerShake();
+                }
+            }
+            if (e == SeEvent.T_SPIN) {
+                hudPane.showTSpinPopup(false);
+            }
+            if (e == SeEvent.T_SPIN_MINI) {
+                hudPane.showTSpinPopup(true);
+            }
+            if (e == SeEvent.REN) {
+                hudPane.showRenPopup(controller.getComboCount());
+            }
+            if (e == SeEvent.HARD_DROP) {
+                spawnHardDropTrail();
             }
         }
 
@@ -450,29 +649,24 @@ final class GameLoopTimer extends AnimationTimer {
         }
         renderer.drawParticles(gc, particles);
 
-        int score = controller.getScore();
-        int lines = controller.getLineCount();
-        hudPane.updateScore(score);
-        hudPane.updateLines(lines);
+        hudPane.updateScore(controller.getScore());
+        hudPane.updateLines(controller.getLineCount());
+        hudPane.updateLevel(controller.getLevel());
 
         renderer.drawNext(
                 holdPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getHold(),
-                0,
-                0,
-                !controller.canHold());
+                controller.getHold(), 0, 0, !controller.canHold());
 
         renderer.drawNext(
                 nextPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getNext(),
-                0,
-                0);
+                controller.getNext(), 0, 0);
 
-        hudPane.updateDialogue(score, lines);
+        hudPane.updateDialogue(controller.getScore(), controller.getLineCount());
 
         int worldRotateStep = controller.getWorldRotateStep();
         if (worldRotateStep != lastWorldRotateStep) {
             view.getCharacterPane().updateCharacterForWorldRotateStep(worldRotateStep);
+            view.applyTheme(UiTheme.forStep(worldRotateStep));
             lastWorldRotateStep = worldRotateStep;
         }
     }
@@ -494,19 +688,21 @@ final class GameLoopTimer extends AnimationTimer {
 
     private void spawnLineParticles() {
         List<Integer> rows = new ArrayList<>();
-        List<Color[]> colors = new ArrayList<>();
+        List<javafx.scene.paint.Color[]> colors = new ArrayList<>();
         controller.getBoard().pollLastClearedLines(rows, colors);
+
+        view.getPlayFieldPane().triggerFlash(rows.size());
 
         int cs = renderer.getCellSize();
 
         for (int i = 0; i < rows.size(); i++) {
             int row = rows.get(i);
-            Color[] lineColors = colors.get(i);
+            javafx.scene.paint.Color[] lineColors = colors.get(i);
             double cy = row * cs + cs * 0.5;
 
             for (int col = 0; col < Board.COLS; col++) {
-                Color color = lineColors[col];
-                if (color == null) color = Color.WHITE;
+                javafx.scene.paint.Color color = lineColors[col];
+                if (color == null) color = javafx.scene.paint.Color.WHITE;
                 double cx = col * cs + cs * 0.5;
 
                 for (int k = 0; k < 5; k++) {
@@ -518,6 +714,21 @@ final class GameLoopTimer extends AnimationTimer {
                     particles.add(new Particle(cx, cy, vx, vy, color, life));
                 }
             }
+        }
+    }
+
+    private void spawnHardDropTrail() {
+        List<int[]> trail = controller.drainHardDropTrail();
+        javafx.scene.paint.Color trailColor = controller.getLastHardDropColor();
+        if (trail.isEmpty() || trailColor == null) return;
+
+        int cs = renderer.getCellSize();
+        javafx.scene.paint.Color bright = trailColor.deriveColor(0, 0.5, 2.0, 0.85);
+
+        for (int[] cell : trail) {
+            double cx = cell[1] * cs + cs * 0.5;
+            double cy = cell[0] * cs + cs * 0.5;
+            particles.add(new Particle(cx, cy, 0, -0.3, bright, 10 + rand.nextInt(6)));
         }
     }
 }

@@ -15,7 +15,8 @@
 | `character-rotate-3.png` | `CharacterPane` | キャラクター（ワールド回転ステップ 3） |
 | `start-bg.png` | ― | 未使用（スタート画面専用背景として用意） |
 | `game-over-bg.png` | ― | 未使用（ゲームオーバー画面専用背景として用意） |
-| `character-bg.png` | ― | 未使用（キャラクター背景として用意） |
+| `character-bg.png` | ― | 未使用（旧キャラクター背景。`character-closeup-bg.png` に置き換え済み） |
+| `character-closeup-bg.png` | `CharacterPane` | キャラクターアップの背景画像。キャラ非表示中に CharacterPane の背景として使用 |
 
 ### 推奨サイズ
 
@@ -26,6 +27,7 @@
 | HUD 背景 | 480 × 280 px |
 | NEXT 背景 | 840 × 168 px |
 | キャラクター | 1080 × 1080 px（縦長可、`preserveRatio: true`） |
+| キャラアップ背景 | 480 × 1080 px（CharacterPane のサイズに合わせる） |
 
 ---
 
@@ -50,6 +52,11 @@ SE は `SePlayer` が起動時にロードし、ファイルが存在しない�
 | `se_harddrop.wav` | ハードドロップ |
 | `se_lock.wav` | ミノ接地・固定 |
 | `se_clear.wav` | ライン消去 |
+| `se_world_rotate.wav` | ワールド回転（盤面 90° 回転） |
+| `se_hold.wav` | ホールド操作 |
+| `se_tspin.wav` | T-Spin（フルスピン + ライン消去） |
+| `se_tspin_mini.wav` | T-Spin Mini（+ ライン消去） |
+| `se_ren.wav` | Ren コンボ（2 連続以上のライン消去） |
 
 ### 音量の仕組み
 

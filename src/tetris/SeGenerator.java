@@ -9,6 +9,7 @@ public final class SeGenerator {
     private static final int SAMPLE_RATE = 44100;
 
     public static void generateMissingSeFiles() {
+        copyGeneratedAssets();
         Path audioDir = ResourcePath.of("audio");
         try {
             if (!Files.exists(audioDir)) {
@@ -22,6 +23,9 @@ public final class SeGenerator {
             checkAndGenerate(audioDir.resolve("se_clear.wav"),        SeType.CLEAR);
             checkAndGenerate(audioDir.resolve("se_world_rotate.wav"), SeType.WORLD_ROTATE);
             checkAndGenerate(audioDir.resolve("se_hold.wav"),         SeType.HOLD);
+            checkAndGenerate(audioDir.resolve("se_tspin.wav"),        SeType.T_SPIN);
+            checkAndGenerate(audioDir.resolve("se_tspin_mini.wav"),   SeType.T_SPIN_MINI);
+            checkAndGenerate(audioDir.resolve("se_ren.wav"),          SeType.REN);
         } catch (IOException e) {
             System.err.println("[SE Generator] Failed to create directories or write files: " + e.getMessage());
         }
@@ -41,7 +45,7 @@ public final class SeGenerator {
     }
 
     private enum SeType {
-        MOVE, ROTATE, HARD_DROP, LOCK, CLEAR, WORLD_ROTATE, HOLD
+        MOVE, ROTATE, HARD_DROP, LOCK, CLEAR, WORLD_ROTATE, HOLD, T_SPIN, T_SPIN_MINI, REN
     }
 
     private static byte[] generateWavData(SeType type) {
@@ -53,6 +57,9 @@ public final class SeGenerator {
             case CLEAR -> 0.45;
             case WORLD_ROTATE -> 0.08;
             case HOLD -> 0.12;
+            case T_SPIN -> 0.50;
+            case T_SPIN_MINI -> 0.30;
+            case REN -> 0.25;
         };
 
         int numSamples = (int) (SAMPLE_RATE * duration);
@@ -105,7 +112,7 @@ public final class SeGenerator {
                     sampleValue = Math.sin(2 * Math.PI * freq * t) * env;
                 }
                 case CLEAR -> {
-                    // Beautiful sparkling C major arpeggio sweep (C5 -> E5 -> G5 -> C6)
+                    // C major arpeggio sweep (C5 -> E5 -> G5 -> C6)
                     double noteDuration = duration / 4.0;
                     int noteIndex = (int) (t / noteDuration);
                     double freq = switch (noteIndex) {
@@ -117,6 +124,32 @@ public final class SeGenerator {
                     double noteT = t - (noteIndex * noteDuration);
                     double env = Math.exp(-noteT * 12) * (1.0 - (t / duration) * 0.5);
                     sampleValue = Math.sin(2 * Math.PI * freq * t) * env;
+                }
+                case T_SPIN -> {
+                    // 華やかな上昇アルペジオ (E5 -> G#5 -> B5 -> E6)
+                    double nd = duration / 4.0;
+                    int ni = Math.min(3, (int) (t / nd));
+                    double[] freqs = { 659.25, 830.61, 987.77, 1318.51 };
+                    double noteT2 = t - ni * nd;
+                    double env = Math.exp(-noteT2 * 10) * (1.0 - (t / duration) * 0.3);
+                    sampleValue = (Math.sin(2 * Math.PI * freqs[ni] * t)
+                                 + 0.3 * Math.sin(2 * Math.PI * freqs[ni] * 2 * t)) * env;
+                }
+                case T_SPIN_MINI -> {
+                    // 短い2音上昇
+                    double nd = duration / 2.0;
+                    int ni = Math.min(1, (int) (t / nd));
+                    double[] freqs = { 523.25, 783.99 };
+                    double noteT2 = t - ni * nd;
+                    double env = Math.exp(-noteT2 * 14);
+                    sampleValue = Math.sin(2 * Math.PI * freqs[ni] * t) * env;
+                }
+                case REN -> {
+                    // コンボ音: 明るいスウィープ
+                    double freq = 440 + (t / duration) * 660;
+                    double env = Math.sin(t / duration * Math.PI);
+                    sampleValue = (Math.sin(2 * Math.PI * freq * t)
+                                 + 0.2 * Math.sin(2 * Math.PI * freq * 1.5 * t)) * env;
                 }
             }
 
@@ -169,6 +202,35 @@ public final class SeGenerator {
     private static void writeShort(byte[] data, int offset, short val) {
         data[offset] = (byte) (val & 0xFF);
         data[offset + 1] = (byte) ((val >> 8) & 0xFF);
+    }
+
+    public static void copyGeneratedAssets() {
+        Path targetImg = ResourcePath.of("images", "character-closeup-bg.png");
+        if (Files.exists(targetImg)) {
+            return;
+        }
+        
+        Path brainDir = Path.of("C:\\Users\\yabuk\\.gemini\\antigravity\\brain\\1ac4c52a-a669-4194-b595-4744351f18c3");
+        if (!Files.exists(brainDir)) {
+            return;
+        }
+        
+        try (var stream = Files.list(brainDir)) {
+            var foundFile = stream
+                .filter(p -> p.getFileName().toString().startsWith("character_closeup_bg_") && p.getFileName().toString().endsWith(".png"))
+                .findFirst();
+            if (foundFile.isPresent()) {
+                Path source = foundFile.get();
+                Path destDir = targetImg.getParent();
+                if (!Files.exists(destDir)) {
+                    Files.createDirectories(destDir);
+                }
+                Files.copy(source, targetImg);
+                System.out.println("[Asset Copier] Copied generated character-closeup-bg.png successfully.");
+            }
+        } catch (IOException e) {
+            System.err.println("[Asset Copier] Failed to copy asset: " + e.getMessage());
+        }
     }
 
     private SeGenerator() {

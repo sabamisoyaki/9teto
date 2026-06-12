@@ -7,5 +7,8 @@ public enum SeEvent {
     LOCK,
     LINE_CLEAR,
     WORLD_ROTATE,
-    HOLD
+    HOLD,
+    T_SPIN,
+    T_SPIN_MINI,
+    REN
 }

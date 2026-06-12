@@ -10,6 +10,7 @@ import java.util.Queue;
 import java.util.Set;
 
 import javafx.scene.input.KeyCode;
+import javafx.scene.paint.Color;
 
 import tetris.model.Board;
 import tetris.model.SeEvent;
@@ -42,19 +43,19 @@ public class GameController {
     private long lastLeftPress = 0;
     private long lastRightPress = 0;
 
-    private static final long DAS = 150_000_000L;  // 150ms
-    private static final long ARR = 30_000_000L;   // 30ms
+    private static final long DAS = 150_000_000L;
+    private static final long ARR = 30_000_000L;
 
     private long lastMoveLeftRepeat = 0;
     private long lastMoveRightRepeat = 0;
 
     private long lastSoftDrop = 0;
-    private static final long SDF = 40_000_000L;   // 40ms 下押し高速落下
+    private static final long SDF = 40_000_000L;
 
     // --- ロック遅延 ---
     private boolean isGrounded = false;
     private long groundStartTime = 0;
-    private static final long LOCK_DELAY = 500_000_000L; // 500ms くらい
+    private static final long LOCK_DELAY = 500_000_000L;
 
     // ==========================
     //   スコア・ライン・接地ブロック数
@@ -63,8 +64,23 @@ public class GameController {
     private int totalLines = 0;
     private int placedMinoCount = 0;
 
+    // ==========================
+    //   T-Spin / Ren
+    // ==========================
+    private boolean lastActionWasRotate = false;
+    private int comboCount = -1;
+
+    // ==========================
+    //   ハードドロップ軌跡
+    // ==========================
+    private final List<int[]> hardDropTrailCells = new ArrayList<>();
+    private Color lastHardDropColor = null;
+
+    private enum TSpinType { NONE, MINI, FULL }
+
     public int getScore()             { return score; }
     public int getLineCount()         { return totalLines; }
+    public int getLevel()             { return Math.min(10, (totalLines / 10) + 1); }
     public int getPlacedMinoCount()   { return placedMinoCount; }
     public int getWorldRotateCount()  { return worldRotateCount; }
     public int getWorldRotateStep()   { return worldRotateStep; }
@@ -73,47 +89,40 @@ public class GameController {
     public Tetromino getHold()        { return hold; }
     public boolean canHold()          { return canHold; }
     public void rotateWorldClockwise() { rotateWorldAndCount(); }
+    public int getComboCount()        { return comboCount; }
+
+    public Color getLastHardDropColor() { return lastHardDropColor; }
+
+    public List<int[]> drainHardDropTrail() {
+        List<int[]> result = new ArrayList<>(hardDropTrailCells);
+        hardDropTrailCells.clear();
+        return result;
+    }
 
     // ==========================
     //   SRS キックテーブル
     // ==========================
 
-    // JLSTZ 共通（簡易 SRS）: [fromRot][0=CW/1=CCW] -> { (dx, dy)... }
     private static final int[][][][] KICK_NORMAL = {
-        // from 0
-        { { {0,0},{-1,0},{-1,1},{0,-2},{-1,-2} },   // 0 -> 1 (CW)
-          { {0,0},{1,0},{1,1},{0,-2},{1,-2}  } },    // 0 -> 3 (CCW)
-
-        // from 1
-        { { {0,0},{1,0},{1,-1},{0,2},{1,2} },        // 1 -> 2 (CW)
-          { {0,0},{1,0},{1,-1},{0,2},{1,2} } },      // 1 -> 0 (CCW)
-
-        // from 2
-        { { {0,0},{1,0},{1,1},{0,-2},{1,-2} },       // 2 -> 3 (CW)
-          { {0,0},{-1,0},{-1,1},{0,-2},{-1,-2} } },  // 2 -> 1 (CCW)
-
-        // from 3
-        { { {0,0},{-1,0},{-1,-1},{0,2},{-1,2} },     // 3 -> 0 (CW)
-          { {0,0},{-1,0},{-1,-1},{0,2},{-1,2} } }    // 3 -> 2 (CCW)
+        { { {0,0},{-1,0},{-1,1},{0,-2},{-1,-2} },
+          { {0,0},{1,0},{1,1},{0,-2},{1,-2}  } },
+        { { {0,0},{1,0},{1,-1},{0,2},{1,2} },
+          { {0,0},{1,0},{1,-1},{0,2},{1,2} } },
+        { { {0,0},{1,0},{1,1},{0,-2},{1,-2} },
+          { {0,0},{-1,0},{-1,1},{0,-2},{-1,-2} } },
+        { { {0,0},{-1,0},{-1,-1},{0,2},{-1,2} },
+          { {0,0},{-1,0},{-1,-1},{0,2},{-1,2} } }
     };
 
-    // I ミノ用（簡易 SRS）
     private static final int[][][][] KICK_I = {
-        // from 0
-        { { {0,0},{-2,0},{1,0},{-2,-1},{1,2} },      // 0 -> 1 (CW)
-          { {0,0},{-1,0},{2,0},{-1,2},{2,-1} } },    // 0 -> 3 (CCW)
-
-        // from 1
-        { { {0,0},{-1,0},{2,0},{-1,2},{2,-1} },      // 1 -> 2 (CW)
-          { {0,0},{2,0},{-1,0},{2,1},{-1,-2} } },    // 1 -> 0 (CCW)
-
-        // from 2
-        { { {0,0},{2,0},{-1,0},{2,1},{-1,-2} },      // 2 -> 3 (CW)
-          { {0,0},{1,0},{-2,0},{1,-2},{-2,1} } },    // 2 -> 1 (CCW)
-
-        // from 3
-        { { {0,0},{1,0},{-2,0},{1,-2},{-2,1} },      // 3 -> 0 (CW)
-          { {0,0},{-2,0},{1,0},{-2,-1},{1,2} } }     // 3 -> 2 (CCW)
+        { { {0,0},{-2,0},{1,0},{-2,-1},{1,2} },
+          { {0,0},{-1,0},{2,0},{-1,2},{2,-1} } },
+        { { {0,0},{-1,0},{2,0},{-1,2},{2,-1} },
+          { {0,0},{2,0},{-1,0},{2,1},{-1,-2} } },
+        { { {0,0},{2,0},{-1,0},{2,1},{-1,-2} },
+          { {0,0},{1,0},{-2,0},{1,-2},{-2,1} } },
+        { { {0,0},{1,0},{-2,0},{1,-2},{-2,1} },
+          { {0,0},{-2,0},{1,0},{-2,-1},{1,2} } }
     };
 
     private static final int[][] KICK_NONE = { {0, 0} };
@@ -149,32 +158,22 @@ public class GameController {
     //                    移動系 API
     // ==================================================
 
-    /** 自然落下 / ソフトドロップ共通 */
     public boolean softDrop() {
         if (board.canMoveDown(current)) {
-
             current.setRow(current.getRow() + 1);
-
-            // 接地解除
             isGrounded = false;
             groundStartTime = 0;
-
             return true;
-
         } else {
-            // 接地した瞬間
             if (!isGrounded) {
                 isGrounded = true;
                 groundStartTime = System.nanoTime();
-                return true;  // まだ固定しない
+                return true;
             }
-
-            // 接地状態が続いているならロック遅延を判定
             long now = System.nanoTime();
             if (now - groundStartTime > LOCK_DELAY) {
                 lockPiece();
             }
-
             return false;
         }
     }
@@ -183,6 +182,7 @@ public class GameController {
         if (board.canMove(current, 0, -1)) {
             current.setCol(current.getCol() - 1);
             resetGroundIfLifted();
+            lastActionWasRotate = false;
             frameEvents.add(SeEvent.MOVE);
         }
     }
@@ -191,11 +191,11 @@ public class GameController {
         if (board.canMove(current, 0, 1)) {
             current.setCol(current.getCol() + 1);
             resetGroundIfLifted();
+            lastActionWasRotate = false;
             frameEvents.add(SeEvent.MOVE);
         }
     }
 
-    // ---- SRS 回転の公開API ----
     public void rotateRight() {
         rotateSRS(true);
     }
@@ -204,11 +204,28 @@ public class GameController {
         rotateSRS(false);
     }
 
-    // --- ハードドロップ ---
     public void hardDrop() {
+        int startRow = current.getRow();
+        int col = current.getCol();
+        int[][] shape = current.getShape();
+        lastHardDropColor = current.getColor();
+
         while (board.canMoveDown(current)) {
             current.setRow(current.getRow() + 1);
         }
+
+        int endRow = current.getRow();
+        hardDropTrailCells.clear();
+        for (int r = startRow; r < endRow; r++) {
+            for (int sr = 0; sr < 4; sr++) {
+                for (int sc = 0; sc < 4; sc++) {
+                    if (shape[sr][sc] == 1) {
+                        hardDropTrailCells.add(new int[]{r + sr, col + sc});
+                    }
+                }
+            }
+        }
+
         frameEvents.add(SeEvent.HARD_DROP);
         lockPiece();
     }
@@ -232,6 +249,7 @@ public class GameController {
         canHold = false;
         isGrounded = false;
         groundStartTime = 0;
+        lastActionWasRotate = false;
         frameEvents.add(SeEvent.HOLD);
 
         handleSpawnBlocked();
@@ -259,16 +277,11 @@ public class GameController {
         boolean space = keys.contains(KeyCode.SPACE);
         boolean h     = keys.contains(KeyCode.H);
 
-        // ====================================
-        // 横移動（DAS / ARR 押しっぱ対応）
-        // ====================================
-
         if (left && right) {
             left = false;
             right = false;
         }
 
-        // ---- 左 ----
         if (left) {
             if (!prevLeft) {
                 moveLeft();
@@ -281,7 +294,6 @@ public class GameController {
             }
         }
 
-        // ---- 右 ----
         if (right) {
             if (!prevRight) {
                 moveRight();
@@ -294,9 +306,6 @@ public class GameController {
             }
         }
 
-        // ====================================
-        // 回転（単発入力）
-        // ====================================
         if (z && !prevZ) {
             rotateLeft();
         }
@@ -307,23 +316,14 @@ public class GameController {
             rotateRight();
         }
 
-        // ====================================
-        // ハードドロップ（単発）
-        // ====================================
         if (space && !prevSpace) {
             hardDrop();
         }
 
-        // ====================================
-        // ホールド（1ミノにつき1回）
-        // ====================================
         if (h && !prevH) {
             holdCurrentPiece();
         }
 
-        // ====================================
-        // ソフトドロップ（押しっぱOK）
-        // ====================================
         if (down) {
             if (now - lastSoftDrop > SDF) {
                 softDrop();
@@ -331,9 +331,6 @@ public class GameController {
             }
         }
 
-        // ====================================
-        // 前フレーム入力を保存
-        // ====================================
         prevLeft = left;
         prevRight = right;
         prevZ = z;
@@ -357,9 +354,6 @@ public class GameController {
     // ==================================================
     //              ロジック・ロック処理
     // ==================================================
-    // ==========================
-    //   フレームイベント
-    // ==========================
     private final EnumSet<SeEvent> frameEvents = EnumSet.noneOf(SeEvent.class);
 
     public Set<SeEvent> drainEvents() {
@@ -375,13 +369,44 @@ public class GameController {
         return trueGameOver;
     }
 
+    // ==========================
+    //   T-Spin 検出
+    // ==========================
+    private TSpinType detectTSpin() {
+        if (!lastActionWasRotate || current.getType() != ShapeType.T) {
+            return TSpinType.NONE;
+        }
+
+        int r = current.getRow();
+        int c = current.getCol();
+
+        boolean tl = board.isBlocked(r,     c);
+        boolean tr = board.isBlocked(r,     c + 2);
+        boolean bl = board.isBlocked(r + 2, c);
+        boolean br = board.isBlocked(r + 2, c + 2);
+
+        int occupied = (tl ? 1 : 0) + (tr ? 1 : 0) + (bl ? 1 : 0) + (br ? 1 : 0);
+        if (occupied < 3) return TSpinType.NONE;
+
+        // T の突起方向がフロントコーナー（A-side）
+        boolean frontA, frontB;
+        switch (current.getRotation()) {
+            case 0 -> { frontA = tl; frontB = tr; } // T上向き: 上コーナーがフロント
+            case 1 -> { frontA = tr; frontB = br; } // T右向き: 右コーナーがフロント
+            case 2 -> { frontA = bl; frontB = br; } // T下向き: 下コーナーがフロント
+            case 3 -> { frontA = tl; frontB = bl; } // T左向き: 左コーナーがフロント
+            default -> { frontA = false; frontB = false; }
+        }
+
+        return (frontA && frontB) ? TSpinType.FULL : TSpinType.MINI;
+    }
+
     private void lockPiece() {
+        TSpinType tSpin = detectTSpin();
 
-        // ピースを盤面に固定
         board.fixToBoard(current);
-
         score += current.countBlocks() * 5;
-        // ライン数の差分を取ってスコア更新
+
         int before = board.getTotalClearedLines();
         board.clearCompletedLines();
         int after  = board.getTotalClearedLines();
@@ -389,8 +414,20 @@ public class GameController {
 
         if (cleared > 0) {
             totalLines += cleared;
-            addScore(cleared);
+            comboCount++;
+            if (comboCount >= 1) {
+                score += comboCount * 50;
+                frameEvents.add(SeEvent.REN);
+            }
+            addScore(cleared, tSpin);
             frameEvents.add(SeEvent.LINE_CLEAR);
+            if (tSpin == TSpinType.FULL) {
+                frameEvents.add(SeEvent.T_SPIN);
+            } else if (tSpin == TSpinType.MINI) {
+                frameEvents.add(SeEvent.T_SPIN_MINI);
+            }
+        } else {
+            comboCount = -1;
         }
 
         // ライン閾値による「盤面回転」
@@ -399,12 +436,11 @@ public class GameController {
             nextRotateThreshold += LINE_ROTATE_INTERVAL;
         }
 
-        // 次ミノに交代
         current = next;
         next = getNextTetromino();
         canHold = true;
+        lastActionWasRotate = false;
 
-        // 出現即死チェック
         if (handleSpawnBlocked()) {
             return;
         }
@@ -413,7 +449,6 @@ public class GameController {
         isGrounded = false;
         groundStartTime = 0;
         placedMinoCount++;
-        System.out.println(placedMinoCount);
         frameEvents.add(SeEvent.LOCK);
     }
 
@@ -423,8 +458,6 @@ public class GameController {
         }
 
         gameOverStreak++;
-        System.out.println("TEMP GAME OVER (" + gameOverStreak + "/4)");
-
         rotateWorldAndCount();
 
         if (gameOverStreak >= MAX_GAME_OVER_STREAK) {
@@ -446,18 +479,33 @@ public class GameController {
         frameEvents.add(SeEvent.WORLD_ROTATE);
     }
 
-
-    // スコア加算（シンプル版）
-    private void addScore(int cleared) {
-        switch (cleared) {
-            case 1 -> score += 100;
-            case 2 -> score += 300;
-            case 3 -> score += 500;
-            case 4 -> score += 800;
+    private void addScore(int cleared, TSpinType tSpin) {
+        if (tSpin == TSpinType.FULL) {
+            score += switch (cleared) {
+                case 0 -> 400;
+                case 1 -> 800;
+                case 2 -> 1200;
+                case 3 -> 1600;
+                default -> 800;
+            };
+        } else if (tSpin == TSpinType.MINI) {
+            score += switch (cleared) {
+                case 0 -> 100;
+                case 1 -> 200;
+                case 2 -> 400;
+                default -> 200;
+            };
+        } else {
+            score += switch (cleared) {
+                case 1 -> 100;
+                case 2 -> 300;
+                case 3 -> 500;
+                case 4 -> 800;
+                default -> 0;
+            };
         }
     }
 
-    // 横移動・回転で「浮いたら」ロック遅延解除
     private void resetGroundIfLifted() {
         if (board.canMoveDown(current)) {
             isGrounded = false;
@@ -491,7 +539,7 @@ public class GameController {
 
         for (int[] k : kicks) {
             int newCol = t.getCol() + k[0];
-            int newRow = t.getRow() - k[1]; // SRS kick y is up-positive; board rows grow downward.
+            int newRow = t.getRow() - k[1];
 
             if (board.canPlace(rotatedShape, newRow, newCol)) {
                 t.setShape(rotatedShape);
@@ -500,10 +548,10 @@ public class GameController {
                 t.setRotation(newRot);
 
                 resetGroundIfLifted();
+                lastActionWasRotate = true;
                 frameEvents.add(SeEvent.ROTATE);
                 return;
             }
         }
-        // すべて失敗 → 回転しない
     }
 }
