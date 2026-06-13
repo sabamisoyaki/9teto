@@ -20,7 +20,6 @@ import javafx.animation.TranslateTransition;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
-import javafx.animation.RotateTransition;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.geometry.Pos;
@@ -53,7 +52,9 @@ import tetris.view.HudPane;
 import tetris.view.NextPane;
 import tetris.view.Particle;
 import tetris.view.Render;
-import tetris.view.UiTheme;
+import tetris.view.UiSkin;
+import tetris.view.UiSkinBank;
+import tetris.view.UiSwapAnimator;
 
 public class Main extends Application {
 
@@ -363,6 +364,9 @@ public class Main extends Application {
             KeyCode code = e.getCode();
             if (code == KeyCode.ESCAPE || code == KeyCode.P) {
                 timer.togglePause();
+            } else if (code == KeyCode.F2) {
+                // デバッグ: UIスキンをフリップ演出付きで次へ入れ替える
+                timer.debugCycleSkin();
             } else if (timer.isGamePaused()) {
                 if (code == KeyCode.SPACE) {
                     timer.togglePause();
@@ -593,10 +597,18 @@ final class GameLoopTimer extends AnimationTimer {
     private final Runnable hideCountdown;
 
     private long lastFall = 0;
-    private int lastWorldRotateStep = -1;
-    private RotateTransition currentSpinAnim = null;
     private final List<Particle> particles = new ArrayList<>();
     private final Random rand = new Random();
+
+    // ワールド回転演出
+    // 演出中はゲーム進行（入力・落下）を止めて、回転直後の理不尽な死を防ぐ
+    private final UiSwapAnimator uiSwapAnimator;
+    private boolean effectFrozen = false;
+    private long freezeStartNanos = 0;
+    private long freezeUntilNanos = 0;
+    private static final long EFFECT_FREEZE_NANOS = 500_000_000L; // 0.5秒
+    // F2 デバッグ用: スキンだけを先送りして見た目を確認できる
+    private int debugSkinShift = 0;
 
     // ライン消去フラッシュ（消去行だけを Canvas 上で白く光らせる）
     private final List<Integer> flashRows = new ArrayList<>();
@@ -646,6 +658,8 @@ final class GameLoopTimer extends AnimationTimer {
         this.hidePauseOverlay = hidePauseOverlay;
         this.showCountdown = showCountdown;
         this.hideCountdown = hideCountdown;
+        this.uiSwapAnimator = new UiSwapAnimator(
+                hudPane, nextPane, holdPane, view.getCharacterPane());
     }
 
     public boolean isGamePaused()  { return isPaused; }
@@ -663,6 +677,9 @@ final class GameLoopTimer extends AnimationTimer {
         }
         isPaused = !isPaused;
         if (isPaused) {
+            // 回転演出フリーズ中にポーズした場合はフリーズを破棄する
+            // （ポーズ解除時の補正がフリーズ分も含めてカバーするため二重シフトを防ぐ）
+            effectFrozen = false;
             pauseStartNanos = System.nanoTime();
             showPauseOverlay.run();
         } else {
@@ -705,6 +722,18 @@ final class GameLoopTimer extends AnimationTimer {
             return;
         }
 
+        // ワールド回転演出中: ゲーム進行（入力・落下）を止めて描画だけ続ける
+        if (effectFrozen) {
+            if (now < freezeUntilNanos) {
+                renderFrame(now);
+                return;
+            }
+            effectFrozen = false;
+            // フリーズ時間ぶんタイマーを補正して、解除直後の即落下・即ロックを防ぐ
+            controller.shiftTimersAfterPause(now - freezeStartNanos);
+            lastFall = now;
+        }
+
         if (!spokeGameStart) {
             spokeGameStart = true;
             lastClearNanos = now;
@@ -727,12 +756,15 @@ final class GameLoopTimer extends AnimationTimer {
             hudPane.showScorePopup(newScore - oldScore);
         }
 
-        for (SeEvent e : controller.drainEvents()) {
+        Set<SeEvent> events = controller.drainEvents();
+        // 回転と同時のフレームでは、消去行・軌跡の座標が回転前の盤面基準で
+        // 無効になっているため、行単位の演出（フラッシュ・パーティクル）は出さない
+        boolean worldRotated = events.contains(SeEvent.WORLD_ROTATE);
+
+        for (SeEvent e : events) {
             sePlayer.play(e);
             if (e == SeEvent.WORLD_ROTATE) {
-                triggerBoardSpinAnimation();
-                view.getPlayFieldPane().triggerShake();
-                proposeDialogue(DialogueTrigger.WORLD_ROTATE, 80, true);
+                onWorldRotated(now);
             }
             if (e == SeEvent.LINE_CLEAR) {
                 // pollLastClearedLines() は呼ぶと内部リストがクリアされるため
@@ -740,10 +772,12 @@ final class GameLoopTimer extends AnimationTimer {
                 List<Integer> rows = new ArrayList<>();
                 List<javafx.scene.paint.Color[]> colors = new ArrayList<>();
                 controller.getBoard().pollLastClearedLines(rows, colors);
-                spawnLineParticles(rows, colors);
-                startLineFlash(rows, linesCleared, now);
+                if (!worldRotated) {
+                    spawnLineParticles(rows, colors);
+                    startLineFlash(rows, linesCleared, now);
+                }
                 spawnScorePopup(linesCleared);
-                if (linesCleared >= 4) {
+                if (linesCleared >= 4 && !worldRotated) {
                     view.getPlayFieldPane().triggerShake();
                 }
                 lastClearNanos = now;
@@ -775,36 +809,11 @@ final class GameLoopTimer extends AnimationTimer {
                 hudPane.showRenPopup(controller.getComboCount());
             }
             if (e == SeEvent.HARD_DROP) {
-                spawnHardDropTrail();
+                spawnHardDropTrail(worldRotated);
             }
         }
 
-        javafx.scene.canvas.GraphicsContext gc = view.getPlayFieldPane().getPlayfieldCanvas().getGraphicsContext2D();
-        renderer.drawAll(gc, controller.getBoard(), controller.getCurrent(), controller.getGhost());
-        drawLineFlash(gc, now);
-
-        Iterator<Particle> it = particles.iterator();
-        while (it.hasNext()) {
-            Particle p = it.next();
-            p.update();
-            if (p.isDead()) it.remove();
-        }
-        renderer.drawParticles(gc, particles);
-
-        hudPane.updateScore(controller.getScore());
-        hudPane.updateLines(controller.getLineCount());
-        hudPane.updateLevel(controller.getLevel());
-        hudPane.updateRotateCountdown(controller.getLinesUntilRotate());
-        hudPane.updateDangerGauge(
-                controller.getGameOverStreak(), controller.getMaxGameOverStreak());
-
-        renderer.drawNext(
-                holdPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getHold(), 0, 0, !controller.canHold());
-
-        renderer.drawNext(
-                nextPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getNext(), 0, 0);
+        renderFrame(now);
 
         // レベルアップ検出（初期化フレームは lastLevel == 0 のため除外）
         int level = controller.getLevel();
@@ -831,13 +840,36 @@ final class GameLoopTimer extends AnimationTimer {
         }
 
         flushDialogue(now);
+    }
 
-        int worldRotateStep = controller.getWorldRotateStep();
-        if (worldRotateStep != lastWorldRotateStep) {
-            view.getCharacterPane().updateCharacterForWorldRotateStep(worldRotateStep);
-            view.applyTheme(UiTheme.forStep(worldRotateStep));
-            lastWorldRotateStep = worldRotateStep;
+    /** 盤面・パーティクル・HUD・プレビューの描画。演出フリーズ中も毎フレーム呼ばれる */
+    private void renderFrame(long now) {
+        javafx.scene.canvas.GraphicsContext gc = view.getPlayFieldPane().getPlayfieldCanvas().getGraphicsContext2D();
+        renderer.drawAll(gc, controller.getBoard(), controller.getCurrent(), controller.getGhost());
+        drawLineFlash(gc, now);
+
+        Iterator<Particle> it = particles.iterator();
+        while (it.hasNext()) {
+            Particle p = it.next();
+            p.update();
+            if (p.isDead()) it.remove();
         }
+        renderer.drawParticles(gc, particles);
+
+        hudPane.updateScore(controller.getScore());
+        hudPane.updateLines(controller.getLineCount());
+        hudPane.updateLevel(controller.getLevel());
+        hudPane.updateRotateCountdown(controller.getLinesUntilRotate());
+        hudPane.updateDangerGauge(
+                controller.getGameOverStreak(), controller.getMaxGameOverStreak());
+
+        renderer.drawNext(
+                holdPane.getNextCanvas().getGraphicsContext2D(),
+                controller.getHold(), 0, 0, !controller.canHold());
+
+        renderer.drawNext(
+                nextPane.getNextCanvas().getGraphicsContext2D(),
+                controller.getNext(), 0, 0);
     }
 
     /**
@@ -866,19 +898,34 @@ final class GameLoopTimer extends AnimationTimer {
         pendingForce = false;
     }
 
-    private void triggerBoardSpinAnimation() {
-        if (currentSpinAnim != null
-                && currentSpinAnim.getStatus() == Animation.Status.RUNNING) {
-            currentSpinAnim.stop();
-            view.getPlayFieldPane().setRotate(0);
-        }
-        RotateTransition rt = new RotateTransition(
-                Duration.millis(400), view.getPlayFieldPane());
-        rt.setByAngle(360);
-        rt.setInterpolator(Interpolator.EASE_BOTH);
-        rt.setCycleCount(1);
-        rt.play();
-        currentSpinAnim = rt;
+    /**
+     * ワールド回転の演出をまとめて発火する唯一の入口。
+     * - 盤面: 回転前のスナップショットを 90°CW に回しながら新盤面へクロスフェード
+     * - 周辺UI: フリップしながら次のスキンへ一括入れ替え
+     * - ゲーム進行: EFFECT_FREEZE_NANOS の間フリーズ
+     */
+    private void onWorldRotated(long now) {
+        UiSkin skin = UiSkinBank.forStep(
+                controller.getWorldRotateStep() + debugSkinShift);
+        view.getPlayFieldPane().playWorldRotateTransition(skin);
+        uiSwapAnimator.play(() -> view.applySkin(skin));
+        view.getPlayFieldPane().triggerShake();
+        proposeDialogue(DialogueTrigger.WORLD_ROTATE, 80, true);
+
+        effectFrozen = true;
+        freezeStartNanos = now;
+        freezeUntilNanos = now + EFFECT_FREEZE_NANOS;
+    }
+
+    /**
+     * F2 デバッグ用: 盤面を回さずスキンだけを次へ入れ替える。
+     * シフト量は以降の本物のワールド回転にも引き継がれる。
+     */
+    public void debugCycleSkin() {
+        debugSkinShift = (debugSkinShift + 1) % UiSkinBank.skinCount();
+        UiSkin skin = UiSkinBank.forStep(
+                controller.getWorldRotateStep() + debugSkinShift);
+        uiSwapAnimator.play(() -> view.applySkin(skin));
     }
 
     private void spawnLineParticles(List<Integer> rows, List<javafx.scene.paint.Color[]> colors) {
@@ -947,10 +994,12 @@ final class GameLoopTimer extends AnimationTimer {
         view.getPlayFieldPane().spawnScorePopup(text, color);
     }
 
-    private void spawnHardDropTrail() {
+    private void spawnHardDropTrail(boolean suppressed) {
+        // 軌跡データは必ずドレインする（残留防止）。回転と同時のフレームでは
+        // 座標が旧盤面基準のため描画しない
         List<int[]> trail = controller.drainHardDropTrail();
         javafx.scene.paint.Color trailColor = controller.getLastHardDropColor();
-        if (trail.isEmpty() || trailColor == null) return;
+        if (suppressed || trail.isEmpty() || trailColor == null) return;
 
         int cs = renderer.getCellSize();
         javafx.scene.paint.Color bright = trailColor.deriveColor(0, 0.5, 2.0, 0.85);

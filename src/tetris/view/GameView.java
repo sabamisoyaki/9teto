@@ -63,6 +63,9 @@ public class GameView {
         root.setLeft(leftColumn);
         root.setRight(sideArea);
         loadBaseLayerImage(DEFAULT_BACKGROUND_IMAGE);
+
+        // 初期スキンを演出なしで適用（ゲーム開始時のフラッシュ暴発を防ぐ）
+        applySkin(UiSkinBank.forStep(0));
     }
 
     private void loadBaseLayerImage(Path imagePath) {
@@ -90,14 +93,14 @@ public class GameView {
     public HudPane getHudPane()                  { return hudPane; }
 
     /**
-     * ワールドローテート時に全 UI へ一括でテーマを適用する。
-     * 各 Pane の applyTheme() に具体的な変更を追記していくこと。
+     * 全 UI へ一括でスキンを適用する（演出なしの即時切替）。
+     * ワールドローテート時のアニメーションは UiSwapAnimator / DeviceFramePane 側が担当する。
      */
-    public void applyTheme(UiTheme theme) {
-        hudPane.applyTheme(theme);
-        playFieldPane.applyTheme(theme);
-        holdPane.applyTheme(theme);
-        nextPane.applyTheme(theme);
-        // ここに追加対象（CharacterPane のスタイルなど）を書く
+    public void applySkin(UiSkin skin) {
+        hudPane.applySkin(skin);
+        playFieldPane.applySkin(skin);
+        holdPane.applySkin(skin);
+        nextPane.applySkin(skin);
+        characterPane.applySkin(skin);
     }
 }

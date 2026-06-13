@@ -66,12 +66,5 @@ public enum UiTheme {
         this.boardOpacity  = boardOpacity;
     }
 
-    public static UiTheme forStep(int step) {
-        return switch (Math.floorMod(step, 4)) {
-            case 1 -> EMBER_RED;
-            case 2 -> NEON_GREEN;
-            case 3 -> VIOLET;
-            default -> CYBER_BLUE;
-        };
-    }
+    // ステップ→見た目の対応は UiSkinBank が一元管理する（forStep はそちらへ移管）
 }

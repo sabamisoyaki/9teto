@@ -30,8 +30,6 @@ public class GameController {
     private static final int LINE_ROTATE_INTERVAL = 3;
     private int nextRotateThreshold = LINE_ROTATE_INTERVAL;
     private int worldRotateCount = 0;
-    private int worldRotateStep = 0;
-    private int worldRotateLoopCount = 0;
 
     // 仮ゲームオーバー（4回で真のゲームオーバー）
     private int gameOverStreak = 0;
@@ -107,8 +105,9 @@ public class GameController {
     }
     public int getPlacedMinoCount()   { return placedMinoCount; }
     public int getWorldRotateCount()  { return worldRotateCount; }
-    public int getWorldRotateStep()   { return worldRotateStep; }
-    public int getWorldRotateLoopCount() { return worldRotateLoopCount; }
+    /** 盤面の物理的な向き（90°×step）。4回転で元に戻るため 0〜3 を循環する */
+    public int getWorldRotateStep()   { return worldRotateCount % 4; }
+    public int getWorldRotateLoopCount() { return worldRotateCount / 4; }
     public Tetromino getNext()        { return next; }
     public Tetromino getHold()        { return hold; }
     public boolean canHold()          { return canHold; }
@@ -550,10 +549,6 @@ public class GameController {
     private void rotateWorldAndCount() {
         board.rotateClockwise();
         worldRotateCount++;
-        worldRotateStep = (worldRotateStep % 3) + 1;
-        if (worldRotateStep == 1 && worldRotateCount >= 4) {
-            worldRotateLoopCount++;
-        }
         frameEvents.add(SeEvent.WORLD_ROTATE);
     }
 

@@ -18,9 +18,6 @@ import javafx.scene.shape.Rectangle;
 public class CharacterPane extends StackPane {
 
     private static final Path DEFAULT_CHARACTER_IMAGE = ResourcePath.of("images", "character.png");
-    private static final Path ROTATE_CHARACTER_IMAGE_1 = ResourcePath.of("images", "character-rotate-1.png");
-    private static final Path ROTATE_CHARACTER_IMAGE_2 = ResourcePath.of("images", "character-rotate-2.png");
-    private static final Path ROTATE_CHARACTER_IMAGE_3 = ResourcePath.of("images", "character-rotate-3.png");
     private static final Path CHARACTER_BG_IMAGE      = ResourcePath.of("images", "character-bg.png");
     private static final Path CHARACTER_CLOSEUP_IMAGE = ResourcePath.of("images", "character-closeup-bg.png");
     private static final double PANE_WIDTH = 480;
@@ -59,18 +56,12 @@ public class CharacterPane extends StackPane {
         characterView.setFitHeight(height);
     }
 
-    public void updateCharacterForWorldRotateStep(int rotateStep) {
-        Path imagePath = switch (rotateStep) {
-            case 1 -> ROTATE_CHARACTER_IMAGE_1;
-            case 2 -> ROTATE_CHARACTER_IMAGE_2;
-            case 3 -> ROTATE_CHARACTER_IMAGE_3;
-            default -> DEFAULT_CHARACTER_IMAGE;
-        };
-
-        if (!Files.exists(imagePath)) {
+    /** スキンに対応するキャラ絵へ差し替える（ステップ→画像の対応は UiSkinBank が持つ） */
+    public void applySkin(UiSkin skin) {
+        Path imagePath = skin.characterImage;
+        if (imagePath == null || !Files.exists(imagePath)) {
             imagePath = DEFAULT_CHARACTER_IMAGE;
         }
-
         applyCharacterImage(imagePath);
     }
 

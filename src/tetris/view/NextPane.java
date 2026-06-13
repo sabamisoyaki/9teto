@@ -52,22 +52,18 @@ public class NextPane extends StackPane {
     }
 
     // ============================================================
-    //  テーマ適用（ワールドローテートごとに呼ばれる）
+    //  スキン適用（ワールドローテートごとに呼ばれる）
+    //  見た目の定義は UiSkinBank に集約されている
     // ============================================================
-    public void applyTheme(UiTheme theme) {
-        setStyle(
-            "-fx-background-color: " + theme.bgColor + "; " +
-            "-fx-border-color: " + theme.borderColor + "; " +
-            "-fx-border-width: 2px; " +
-            "-fx-border-radius: 5px; " +
-            "-fx-background-radius: 5px;");
+    public void applySkin(UiSkin skin) {
+        setStyle(skin.panelStyle());
 
-        titleLabel.setStyle(
-            "-fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: 'Courier New';" +
-            " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 4, 0.0, 1, 1);" +
-            " -fx-text-fill: " + theme.accentColor + ";");
+        titleLabel.setStyle(skin.fontStyle(20)
+            + " -fx-font-weight: bold;"
+            + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 4, 0.0, 1, 1);"
+            + " -fx-text-fill: " + skin.theme.accentColor + ";");
 
-        // ここに追加カスタマイズを書く
+        loadBackgroundImage(skin.nextBgImage != null ? skin.nextBgImage : DEFAULT_BACKGROUND_IMAGE);
     }
 
     public Canvas getNextCanvas() {

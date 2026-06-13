@@ -5,16 +5,20 @@ import java.nio.file.Path;
 import tetris.ResourcePath;
 
 import javafx.animation.FadeTransition;
+import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.ParallelTransition;
+import javafx.animation.RotateTransition;
 import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
 import javafx.util.Duration;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -131,26 +135,84 @@ public class DeviceFramePane extends Pane {
     }
 
     // ============================================================
-    //  テーマ適用（ワールドローテートごとに呼ばれる）
+    //  スキン適用（ワールドローテートごとに呼ばれる）
+    //  演出は持たず見た目の切替のみ。回転演出は playWorldRotateTransition が担当
     // ============================================================
-    public void applyTheme(UiTheme theme) {
-        // 枠線の色をテーマのアクセントカラーへ
-        frame.setStroke(Color.web(theme.borderColor));
+    public void applySkin(UiSkin skin) {
+        frame.setStroke(Color.web(skin.theme.borderColor));
 
-        // テーマカラーでフラッシュ演出
-        flashOverlay.setFill(theme.flashColor);
-        flashOverlay.setOpacity(0.35);
-        FadeTransition ft = new FadeTransition(Duration.millis(400), flashOverlay);
-        ft.setFromValue(0.35);
-        ft.setToValue(0.0);
-        ft.play();
+        if (skin.playfieldBgImage != null) {
+            applyBackgroundImage(skin.playfieldBgImage);
+        }
 
-        // ゲームボード全体の不透明度をテーマに合わせてフェード
+        // ゲームボード全体の不透明度をスキンに合わせてフェード
         Timeline opacityAnim = new Timeline(
             new KeyFrame(Duration.ZERO,        new KeyValue(opacityProperty(), getOpacity())),
-            new KeyFrame(Duration.millis(500),  new KeyValue(opacityProperty(), theme.boardOpacity))
+            new KeyFrame(Duration.millis(500),  new KeyValue(opacityProperty(), skin.theme.boardOpacity))
         );
         opacityAnim.play();
+    }
+
+    // ============================================================
+    //  ワールド回転トランジション
+    //  呼び出し時点の Canvas（＝回転前の盤面が残っている）をスナップショットして
+    //  重ね、実際の盤面回転と同じ 90°CW に回しながら新盤面へクロスフェードする。
+    //  必ず「このフレームの drawAll より前」に呼ぶこと。
+    // ============================================================
+    private ParallelTransition rotateTransition = null;
+    private ImageView rotateSnapshotView = null;
+
+    public void playWorldRotateTransition(UiSkin newSkin) {
+        finishRotateTransition();
+
+        SnapshotParameters sp = new SnapshotParameters();
+        sp.setFill(Color.TRANSPARENT);
+        WritableImage snap = playfieldCanvas.snapshot(sp, null);
+
+        ImageView old = new ImageView(snap);
+        old.setMouseTransparent(true);
+        // フラッシュ・警告オーバーレイより下、Canvas より上に挿入
+        getChildren().add(getChildren().indexOf(flashOverlay), old);
+        playfieldCanvas.setOpacity(0.0);
+
+        Duration d = Duration.millis(450);
+
+        RotateTransition rot = new RotateTransition(d, old);
+        rot.setByAngle(90); // Board.rotateClockwise と同じ右回転
+        rot.setInterpolator(Interpolator.EASE_BOTH);
+
+        FadeTransition oldFade = new FadeTransition(d.multiply(0.6), old);
+        oldFade.setFromValue(1.0);
+        oldFade.setToValue(0.0);
+        oldFade.setDelay(d.multiply(0.4));
+
+        FadeTransition canvasFade = new FadeTransition(d, playfieldCanvas);
+        canvasFade.setFromValue(0.0);
+        canvasFade.setToValue(1.0);
+
+        // 新スキンのテーマカラーでフラッシュ
+        flashOverlay.setFill(newSkin.theme.flashColor);
+        FadeTransition flash = new FadeTransition(Duration.millis(400), flashOverlay);
+        flash.setFromValue(0.35);
+        flash.setToValue(0.0);
+
+        ParallelTransition all = new ParallelTransition(rot, oldFade, canvasFade, flash);
+        all.setOnFinished(e -> finishRotateTransition());
+        rotateTransition = all;
+        rotateSnapshotView = old;
+        all.play();
+    }
+
+    /** 実行中の回転トランジションを即座に終了状態へ戻す（連続回転時の多重防止） */
+    private void finishRotateTransition() {
+        if (rotateTransition == null) return;
+        rotateTransition.stop();
+        rotateTransition = null;
+        if (rotateSnapshotView != null) {
+            getChildren().remove(rotateSnapshotView);
+            rotateSnapshotView = null;
+        }
+        playfieldCanvas.setOpacity(1.0);
     }
 
     public void triggerShake() {

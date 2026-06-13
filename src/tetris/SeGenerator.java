@@ -9,7 +9,6 @@ public final class SeGenerator {
     private static final int SAMPLE_RATE = 44100;
 
     public static void generateMissingSeFiles() {
-        copyGeneratedAssets();
         Path audioDir = ResourcePath.of("audio");
         try {
             if (!Files.exists(audioDir)) {
@@ -214,35 +213,6 @@ public final class SeGenerator {
     private static void writeShort(byte[] data, int offset, short val) {
         data[offset] = (byte) (val & 0xFF);
         data[offset + 1] = (byte) ((val >> 8) & 0xFF);
-    }
-
-    public static void copyGeneratedAssets() {
-        Path targetImg = ResourcePath.of("images", "character-closeup-bg.png");
-        if (Files.exists(targetImg)) {
-            return;
-        }
-        
-        Path brainDir = Path.of("C:\\Users\\yabuk\\.gemini\\antigravity\\brain\\1ac4c52a-a669-4194-b595-4744351f18c3");
-        if (!Files.exists(brainDir)) {
-            return;
-        }
-        
-        try (var stream = Files.list(brainDir)) {
-            var foundFile = stream
-                .filter(p -> p.getFileName().toString().startsWith("character_closeup_bg_") && p.getFileName().toString().endsWith(".png"))
-                .findFirst();
-            if (foundFile.isPresent()) {
-                Path source = foundFile.get();
-                Path destDir = targetImg.getParent();
-                if (!Files.exists(destDir)) {
-                    Files.createDirectories(destDir);
-                }
-                Files.copy(source, targetImg);
-                System.out.println("[Asset Copier] Copied generated character-closeup-bg.png successfully.");
-            }
-        } catch (IOException e) {
-            System.err.println("[Asset Copier] Failed to copy asset: " + e.getMessage());
-        }
     }
 
     private SeGenerator() {

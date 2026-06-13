@@ -6,13 +6,18 @@
 |---|---|---|
 | `base-layer-1920x1080.png` | `Main`, `GameView`, `ConfigPane` | 全画面共通の背景（スタート・ゲーム・ゲームオーバー・コンフィグ） |
 | `end-credit-bg.png` | `Main` | エンドクレジット画面の背景 |
-| `playfield-bg.png` | `DeviceFramePane` | プレイフィールドの背景 |
-| `hud-bg.png` | `HudPane` | スコア・ライン表示エリアの背景 |
-| `next-bg.png` | `NextPane` | NEXTミノ表示エリアの背景 |
-| `character.png` | `CharacterPane` | キャラクター（ワールド回転なし / デフォルト） |
-| `character-rotate-1.png` | `CharacterPane` | キャラクター（ワールド回転ステップ 1） |
-| `character-rotate-2.png` | `CharacterPane` | キャラクター（ワールド回転ステップ 2） |
-| `character-rotate-3.png` | `CharacterPane` | キャラクター（ワールド回転ステップ 3） |
+| `playfield-bg.png` | `UiSkinBank` → `DeviceFramePane` | プレイフィールドの背景 |
+| `hud-bg.png` | `UiSkinBank` → `HudPane` | スコア・ライン表示エリアの背景 |
+| `next-bg.png` | `UiSkinBank` → `NextPane` | NEXT/HOLDミノ表示エリアの背景 |
+| `character.png` | `UiSkinBank` → `CharacterPane` | キャラクター（スキン CYBER / ステップ 0） |
+| `character-rotate-1.png` | `UiSkinBank` → `CharacterPane` | キャラクター（スキン EMBER / ステップ 1） |
+| `character-rotate-2.png` | `UiSkinBank` → `CharacterPane` | キャラクター（スキン NEON / ステップ 2） |
+| `character-rotate-3.png` | `UiSkinBank` → `CharacterPane` | キャラクター（スキン VIOLET / ステップ 3） |
+
+> ワールド回転ステップごとの UI（配色・フォント・枠形状・背景画像・キャラ絵）は
+> `src/tetris/view/UiSkinBank.java` の `SKINS` で一元管理している。
+> スキンを増やす／画像を差し替える場合はそこに 1 エントリ追加・編集するだけでよい。
+> ゲーム中 F2 キーでスキンだけをフリップ演出付きで試し替えできる（デバッグ用）。
 | `start-bg.png` | ― | 未使用（スタート画面専用背景として用意） |
 | `game-over-bg.png` | ― | 未使用（ゲームオーバー画面専用背景として用意） |
 | `character-bg.png` | ― | 未使用（旧キャラクター背景。`character-closeup-bg.png` に置き換え済み） |

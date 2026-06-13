@@ -88,9 +88,11 @@ public class Board {
 
     /** 固定ブロック全体を90°回転させる（右回転） */
     public void rotateClockwise() {
-
+        // 純粋な90°CW回転（正方形盤面前提）。
+        // 以前は「右端列＝元row0は常に空」とみなして全体を1列右シフトしていたが、
+        // 積みが天井に達した状態（まさに仮ゲームオーバー時）では row0 にもブロックが
+        // 存在し、シフトで切り捨てられて消失するバグがあったため廃止した。
         Color[][] rotated = new Color[ROWS][COLS];
-
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
                 if (board[r][c] != null) {
@@ -98,18 +100,7 @@ public class Board {
                 }
             }
         }
-
-        // CW回転後、右端の列(col=24)は元のrow0（スポーン行＝常に空）に対応するため必ず空になる。
-        // 全体を1列右シフトして空き列を左端に移すことで右端の隙間をなくす。
-        // col24（元row0の内容＝常に0）は切り捨てられるがデータ損失はない。
-        board = new Color[ROWS][COLS];
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 1; c < COLS; c++) {
-                board[r][c] = rotated[r][c - 1];
-            }
-            // board[r][0] = null（デフォルト初期化済み）
-        }
-
+        board = rotated;
     }
 
     // --- ライン消去 ---

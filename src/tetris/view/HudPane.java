@@ -13,22 +13,15 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.image.Image;
-import javafx.scene.layout.Background;
-import javafx.scene.layout.BackgroundImage;
-import javafx.scene.layout.BackgroundPosition;
-import javafx.scene.layout.BackgroundRepeat;
-import javafx.scene.layout.BackgroundSize;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.StackPane;
 
 public class HudPane extends StackPane {
 
     private static final Path DEFAULT_BACKGROUND_IMAGE = ResourcePath.of("images", "hud-bg.png");
-
-    private static final String ROTATE_STYLE_NORMAL =
-        "-fx-font-size: 22px; -fx-text-fill: #ffcc66; -fx-font-family: 'Courier New';";
-    private static final String ROTATE_STYLE_WARNING =
-        "-fx-font-size: 22px; -fx-text-fill: #ff6666; -fx-font-weight: bold; -fx-font-family: 'Courier New';";
+    private static final double PANE_WIDTH = 480;
+    private static final double PANE_HEIGHT = 400;
 
     private final Label scoreLabel;
     private final Label linesLabel;
@@ -37,16 +30,24 @@ public class HudPane extends StackPane {
     private final Label dangerLabel;
     private final Label dialogueLabel;
     private final VBox contentBox;
+    // 背景画像は ImageView で持つ。setBackground だと inline style（-fx-background-color）に
+    // 上書きされて画像が表示されないため、子ノードとして重ねる（NextPane と同方式）
+    private final ImageView backgroundView;
 
+    private UiSkin skin = UiSkinBank.forStep(0);
     private int lastRotateRemaining = Integer.MIN_VALUE;
     private int lastDangerStreak = Integer.MIN_VALUE;
 
     public HudPane() {
-        setPrefSize(480, 400);
-        setMinSize(480, 400);
-        setMaxSize(480, 400);
+        setPrefSize(PANE_WIDTH, PANE_HEIGHT);
+        setMinSize(PANE_WIDTH, PANE_HEIGHT);
+        setMaxSize(PANE_WIDTH, PANE_HEIGHT);
         setAlignment(Pos.TOP_LEFT);
-        setStyle("-fx-background-color: rgba(10, 10, 10, 0.75); -fx-border-color: #445566; -fx-border-width: 1px; -fx-border-radius: 5px; -fx-background-radius: 5px;");
+
+        backgroundView = new ImageView();
+        backgroundView.setFitWidth(PANE_WIDTH);
+        backgroundView.setFitHeight(PANE_HEIGHT);
+        backgroundView.setMouseTransparent(true);
 
         contentBox = new VBox(15);
         contentBox.setAlignment(Pos.TOP_LEFT);
@@ -58,20 +59,13 @@ public class HudPane extends StackPane {
         rotateLabel = new Label("Spin in: 3 lines");
         dangerLabel = new Label("Danger: ○○○○");
         dialogueLabel = new Label();
-
-        scoreLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #e0e0e0; -fx-font-family: 'Courier New';");
-        linesLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #e0e0e0; -fx-font-family: 'Courier New';");
-        levelLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #e0e0e0; -fx-font-family: 'Courier New';");
-        rotateLabel.setStyle(ROTATE_STYLE_NORMAL);
-        dangerLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #ff8888; -fx-font-family: 'Courier New';");
-        dialogueLabel.setStyle("-fx-font-size: 18px; -fx-text-fill: #cccccc; -fx-font-family: 'Courier New'; -fx-line-spacing: 5px;");
         dialogueLabel.setWrapText(true);
         dialogueLabel.setMaxWidth(420);
 
         contentBox.getChildren().addAll(scoreLabel, linesLabel, levelLabel, rotateLabel, dangerLabel, dialogueLabel);
-        getChildren().add(contentBox);
+        getChildren().addAll(backgroundView, contentBox);
 
-        applyBackgroundImage(DEFAULT_BACKGROUND_IMAGE);
+        applySkin(skin);
     }
 
     public void updateScore(int score) {
@@ -92,7 +86,14 @@ public class HudPane extends StackPane {
         lastRotateRemaining = remaining;
 
         rotateLabel.setText("Spin in: " + remaining + (remaining == 1 ? " line" : " lines"));
-        rotateLabel.setStyle(remaining <= 1 ? ROTATE_STYLE_WARNING : ROTATE_STYLE_NORMAL);
+        applyRotateLabelStyle();
+    }
+
+    private void applyRotateLabelStyle() {
+        boolean warning = lastRotateRemaining != Integer.MIN_VALUE && lastRotateRemaining <= 1;
+        rotateLabel.setStyle(skin.fontStyle(22)
+            + (warning ? " -fx-text-fill: #ff6666; -fx-font-weight: bold;"
+                       : " -fx-text-fill: #ffcc66;"));
     }
 
     /** 仮ゲームオーバーの残ライフを ●○ で常時表示する */
@@ -116,46 +117,28 @@ public class HudPane extends StackPane {
     }
 
     // ============================================================
-    //  テーマ適用（ワールドローテートごとに呼ばれる）
-    //  UiTheme の各フィールドを使って見た目を自由にカスタマイズ
+    //  スキン適用（ワールドローテートごとに呼ばれる）
+    //  見た目の定義は UiSkinBank に集約されている
     // ============================================================
-    public void applyTheme(UiTheme theme) {
-        // パネル全体のボーダー・背景
-        setStyle(
-            "-fx-background-color: " + theme.bgColor + "; " +
-            "-fx-border-color: " + theme.borderColor + "; " +
-            "-fx-border-width: 2px; " +
-            "-fx-border-radius: 5px; " +
-            "-fx-background-radius: 5px;");
+    public void applySkin(UiSkin newSkin) {
+        this.skin = newSkin;
 
-        // スコア／ライン／レベルラベルの文字色
-        String baseStyle = "-fx-font-size: 22px; -fx-font-family: 'Courier New';";
-        scoreLabel.setStyle(baseStyle + " -fx-text-fill: " + theme.textColor + ";");
-        linesLabel.setStyle(baseStyle + " -fx-text-fill: " + theme.textColor + ";");
-        levelLabel.setStyle(baseStyle + " -fx-text-fill: " + theme.accentColor + "; -fx-font-weight: bold;");
-        dangerLabel.setStyle(baseStyle + " -fx-text-fill: #ff8888;");
-        dialogueLabel.setStyle(
-            "-fx-font-size: 18px; -fx-font-family: 'Courier New'; -fx-line-spacing: 5px;" +
-            " -fx-text-fill: " + theme.textColor + ";");
+        setStyle(skin.panelStyle());
 
-        // ここに追加カスタマイズを書く
-        // 例: backgroundImage を theme.bgImagePath で差し替えるなど
-    }
+        scoreLabel.setStyle(skin.fontStyle(22) + " -fx-text-fill: " + skin.theme.textColor + ";");
+        linesLabel.setStyle(skin.fontStyle(22) + " -fx-text-fill: " + skin.theme.textColor + ";");
+        levelLabel.setStyle(skin.fontStyle(22) + " -fx-text-fill: " + skin.theme.accentColor + "; -fx-font-weight: bold;");
+        dangerLabel.setStyle(skin.fontStyle(22) + " -fx-text-fill: #ff8888;");
+        dialogueLabel.setStyle(skin.fontStyle(18) + " -fx-line-spacing: 5px;"
+            + " -fx-text-fill: " + skin.theme.textColor + ";");
+        applyRotateLabelStyle();
 
-    private void applyBackgroundImage(Path imagePath) {
-        if (imagePath == null || !Files.exists(imagePath)) {
-            return;
+        Path imagePath = skin.hudBgImage != null ? skin.hudBgImage : DEFAULT_BACKGROUND_IMAGE;
+        if (imagePath != null && Files.exists(imagePath)) {
+            backgroundView.setImage(new Image(imagePath.toUri().toString()));
+        } else {
+            backgroundView.setImage(null);
         }
-
-        Image image = new Image(imagePath.toUri().toString());
-        BackgroundSize size = new BackgroundSize(100, 100, true, true, false, true);
-        BackgroundImage backgroundImage = new BackgroundImage(
-                image,
-                BackgroundRepeat.NO_REPEAT,
-                BackgroundRepeat.NO_REPEAT,
-                BackgroundPosition.CENTER,
-                size);
-        setBackground(new Background(backgroundImage));
     }
 
     public void showScorePopup(int addedScore) {
