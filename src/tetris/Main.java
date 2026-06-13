@@ -396,11 +396,20 @@ public class Main extends Application {
             KeyCode code = e.getCode();
             if (code == KeyCode.ESCAPE || code == KeyCode.P) {
                 timer.togglePause();
+            } else if (code == KeyCode.U) {
+                // デバッグ: ボタン一発で UI を総入れ替え（配置＋スキンを同時に次へ）
+                String layoutName = view.cycleLayout();
+                String skinName = timer.debugCycleSkin();
+                view.getPlayFieldPane().spawnScorePopup(
+                        "UI: " + layoutName + " / " + skinName,
+                        javafx.scene.paint.Color.LIGHTSKYBLUE);
             } else if (code == KeyCode.F2) {
-                // デバッグ: UIスキンをフリップ演出付きで次へ入れ替える
-                timer.debugCycleSkin();
+                // デバッグ: UIスキン（見た目）だけをフリップ演出付きで次へ入れ替える
+                String name = timer.debugCycleSkin();
+                view.getPlayFieldPane().spawnScorePopup(
+                        "SKIN: " + name, javafx.scene.paint.Color.LIGHTSKYBLUE);
             } else if (code == KeyCode.F3) {
-                // デバッグ: UI配置を次の定義へ切り替える
+                // デバッグ: UI配置（位置）だけを次の定義へ切り替える
                 String name = view.cycleLayout();
                 view.getPlayFieldPane().spawnScorePopup(
                         "LAYOUT: " + name, javafx.scene.paint.Color.LIGHTSKYBLUE);
@@ -976,12 +985,15 @@ final class GameLoopTimer extends AnimationTimer {
     /**
      * F2 デバッグ用: 盤面を回さずスキンだけを次へ入れ替える。
      * シフト量は以降の本物のワールド回転にも引き継がれる。
+     *
+     * @return 適用したスキン名
      */
-    public void debugCycleSkin() {
+    public String debugCycleSkin() {
         debugSkinShift = (debugSkinShift + 1) % UiSkinBank.skinCount();
         UiSkin skin = UiSkinBank.forStep(
                 controller.getWorldRotateStep() + debugSkinShift);
         uiSwapAnimator.play(() -> view.applySkin(skin));
+        return skin.name;
     }
 
     private void spawnLineParticles(List<Integer> rows, List<javafx.scene.paint.Color[]> colors) {
