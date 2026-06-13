@@ -18,6 +18,12 @@
 > `src/tetris/view/UiSkinBank.java` の `SKINS` で一元管理している。
 > スキンを増やす／画像を差し替える場合はそこに 1 エントリ追加・編集するだけでよい。
 > ゲーム中 F2 キーでスキンだけをフリップ演出付きで試し替えできる（デバッグ用）。
+>
+> パネルの**配置**（位置）は `src/tetris/view/UiLayoutBank.java` の `LAYOUTS` で
+> 一元管理している（CLASSIC / SOUTHPAW / CENTER STAGE / SIDEBAR の4種）。
+> 各パネルの座標を 1920×1080 上の絶対座標で指定するだけで配置を組み替えられる。
+> ゲーム中 F3 キーで配置を順送りに切り替えられる（デバッグ用）。
+> スキン（見た目）と配置（位置）は独立しており、自由に組み合わせられる。
 | `start-bg.png` | ― | 未使用（スタート画面専用背景として用意） |
 | `game-over-bg.png` | ― | 未使用（ゲームオーバー画面専用背景として用意） |
 | `character-bg.png` | ― | 未使用（旧キャラクター背景。`character-closeup-bg.png` に置き換え済み） |

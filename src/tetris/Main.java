@@ -399,6 +399,11 @@ public class Main extends Application {
             } else if (code == KeyCode.F2) {
                 // デバッグ: UIスキンをフリップ演出付きで次へ入れ替える
                 timer.debugCycleSkin();
+            } else if (code == KeyCode.F3) {
+                // デバッグ: UI配置を次の定義へ切り替える
+                String name = view.cycleLayout();
+                view.getPlayFieldPane().spawnScorePopup(
+                        "LAYOUT: " + name, javafx.scene.paint.Color.LIGHTSKYBLUE);
             } else if (timer.isGamePaused()) {
                 if (code == KeyCode.SPACE) {
                     timer.togglePause();
