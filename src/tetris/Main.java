@@ -64,6 +64,7 @@ public class Main extends Application {
     private static final Path BGM_PATH = ResourcePath.of("audio", "bgm.wav");
     private static final double BGM_MAX_VOLUME = 0.35;
     private MediaPlayer bgmPlayer;
+    private Timeline bgmFade; // 実行中のフェードアウト。再生再開時に止めて二重制御を防ぐ
     private final GameConfig config = new GameConfig();
 
     private static final Path MAIN_BACKGROUND_IMAGE = ResourcePath.of("images", "base-layer-1920x1080.png");
@@ -114,6 +115,12 @@ public class Main extends Application {
         if (bgmPlayer == null || !config.isBgmEnabled()) {
             return;
         }
+        // フェードアウト進行中にリトライした場合、走り続けるフェードの onFinished が
+        // 直後に stop() を呼んで新ゲームのBGMを止めてしまうため、ここで打ち切る
+        if (bgmFade != null) {
+            bgmFade.stop();
+            bgmFade = null;
+        }
         bgmPlayer.setVolume(config.getBgmVolume() * BGM_MAX_VOLUME);
         if (bgmPlayer.getStatus() != MediaPlayer.Status.PLAYING) {
             bgmPlayer.play();
@@ -125,16 +132,21 @@ public class Main extends Application {
             if (onFinished != null) onFinished.run();
             return;
         }
+        if (bgmFade != null) {
+            bgmFade.stop();
+        }
         double startVol = bgmPlayer.getVolume();
         Timeline fade = new Timeline(
             new KeyFrame(Duration.ZERO, new KeyValue(bgmPlayer.volumeProperty(), startVol)),
             new KeyFrame(Duration.seconds(durationSecs), new KeyValue(bgmPlayer.volumeProperty(), 0.0))
         );
         fade.setOnFinished(e -> {
+            bgmFade = null;
             bgmPlayer.stop();
             bgmPlayer.seek(Duration.ZERO);
             if (onFinished != null) onFinished.run();
         });
+        bgmFade = fade;
         fade.play();
     }
 
@@ -142,6 +154,24 @@ public class Main extends Application {
     //  シーン遷移演出
     // =====================================================
     private boolean transitioning = false;
+
+    // シーンに紐づく無限ループのアニメーション。シーンを作り直しても JavaFX の
+    // プライマリタイマーから強参照され続けて GC されないため、明示的に stop する。
+    private final List<Animation> loopingAnimations = new ArrayList<>();
+
+    /** 無限ループのアニメーションを登録して再生する（シーン切替時に一括停止される） */
+    private void playLooping(Animation anim) {
+        loopingAnimations.add(anim);
+        anim.play();
+    }
+
+    /** 前シーンの無限ループアニメーションを全て停止する。新シーン構築の冒頭で呼ぶ */
+    private void stopLoopingAnimations() {
+        for (Animation a : loopingAnimations) {
+            a.stop();
+        }
+        loopingAnimations.clear();
+    }
 
     /** 現在のシーンを縮小＋フェードアウトさせてから次のシーンを表示する */
     private void transitionOut(Runnable showNextScene) {
@@ -183,6 +213,7 @@ public class Main extends Application {
     //  スタート画面
     // =====================================================
     private Scene makeStartScene() {
+        stopLoopingAnimations();
         StackPane root = new StackPane();
         Path bgPath = Files.exists(START_BACKGROUND_IMAGE) ? START_BACKGROUND_IMAGE : MAIN_BACKGROUND_IMAGE;
         applyBackgroundImage(root, bgPath, true);
@@ -200,15 +231,14 @@ public class Main extends Application {
         glow.setSpread(0.25);
         title.setEffect(glow);
 
-        // グロウの強弱を往復させて脈動させる
-        // （無限ループの Transition だが、シーンは毎回 make し直すためシーンごと GC される。
-        //   シーンをキャッシュする改修をする場合は stop 管理が必要になる）
+        // グロウの強弱を往復させて脈動させる（無限ループ）。
+        // シーン切替時に stopLoopingAnimations() で停止されるよう playLooping で登録する。
         Timeline glowPulse = new Timeline(
             new KeyFrame(Duration.ZERO,         new KeyValue(glow.radiusProperty(), 18)),
             new KeyFrame(Duration.seconds(1.6), new KeyValue(glow.radiusProperty(), 40)));
         glowPulse.setCycleCount(Animation.INDEFINITE);
         glowPulse.setAutoReverse(true);
-        glowPulse.play();
+        playLooping(glowPulse);
 
         TranslateTransition titleTt = new TranslateTransition(Duration.seconds(1), title);
         titleTt.setFromY(-200);
@@ -227,7 +257,7 @@ public class Main extends Application {
         fade.setToValue(0.2);
         fade.setCycleCount(Animation.INDEFINITE);
         fade.setAutoReverse(true);
-        fade.play();
+        playLooping(fade);
 
         Label configHint = new Label("C  Config");
         configHint.setStyle("-fx-font-size: 20px; -fx-text-fill: #6688aa; -fx-font-family: 'Courier New';");
@@ -261,6 +291,7 @@ public class Main extends Application {
     //  コンフィグ画面
     // =====================================================
     private Scene makeConfigScene() {
+        stopLoopingAnimations();
         ConfigPane pane = new ConfigPane(
             config,
             v -> { if (bgmPlayer != null) bgmPlayer.setVolume(v * BGM_MAX_VOLUME); },
@@ -287,6 +318,7 @@ public class Main extends Application {
     //  ゲーム画面
     // =====================================================
     private Scene makeGameScene() {
+        stopLoopingAnimations();
         GameView view = new GameView();
         GameController controller = new GameController();
         int cellSize = Math.min(
@@ -418,6 +450,7 @@ public class Main extends Application {
     //  ゲームオーバー画面
     // =====================================================
     private Scene makeGameOverScene(int score, int lines) {
+        stopLoopingAnimations();
         StackPane root = new StackPane();
         Path bgPath = Files.exists(GAME_OVER_BACKGROUND_IMAGE) ? GAME_OVER_BACKGROUND_IMAGE : MAIN_BACKGROUND_IMAGE;
         applyBackgroundImage(root, bgPath, true);
@@ -462,7 +495,7 @@ public class Main extends Application {
         fade.setToValue(0.3);
         fade.setCycleCount(Animation.INDEFINITE);
         fade.setAutoReverse(true);
-        fade.play();
+        playLooping(fade);
 
         hints.getChildren().addAll(retry, titleHint);
         content.getChildren().addAll(title, statsBox, hints);
@@ -515,7 +548,7 @@ public class Main extends Application {
     //  エンドクレジット画面
     // =====================================================
     private Scene makeEndCreditScene(String creditJson, Runnable onComplete) {
-
+        stopLoopingAnimations();
         EndCreditPane creditPane = new EndCreditPane(creditJson, END_CREDIT_BACKGROUND_IMAGE);
         Scene scene = new Scene(creditPane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -599,6 +632,9 @@ final class GameLoopTimer extends AnimationTimer {
     private long lastFall = 0;
     private final List<Particle> particles = new ArrayList<>();
     private final Random rand = new Random();
+
+    // HUDスコアポップアップを出す最小加点。ソフトドロップの +1 連発を抑制する
+    private static final int MIN_SCORE_POPUP = 5;
 
     // ワールド回転演出
     // 演出中はゲーム進行（入力・落下）を止めて、回転直後の理不尽な死を防ぐ
@@ -705,9 +741,11 @@ final class GameLoopTimer extends AnimationTimer {
                 countingDown = false;
                 keys.clear();
                 hideCountdown.run();
-                // ポーズ時間ぶんタイマーを補正して、解除直後の即落下・即ロックを防ぐ
+                // ポーズ時間ぶんタイマーを補正して、解除直後の即落下・即ロックを防ぐ。
+                // セリフ用タイムスタンプも補正しないと、長時間ポーズ後に IDLE が即発火する
                 long pausedNanos = now - pauseStartNanos;
                 controller.shiftTimersAfterPause(pausedNanos);
+                shiftDialogueTimers(pausedNanos);
                 lastFall = now;
             } else if (secondsLeft != lastShownCountdown) {
                 lastShownCountdown = secondsLeft;
@@ -730,7 +768,9 @@ final class GameLoopTimer extends AnimationTimer {
             }
             effectFrozen = false;
             // フリーズ時間ぶんタイマーを補正して、解除直後の即落下・即ロックを防ぐ
-            controller.shiftTimersAfterPause(now - freezeStartNanos);
+            long frozenNanos = now - freezeStartNanos;
+            controller.shiftTimersAfterPause(frozenNanos);
+            shiftDialogueTimers(frozenNanos);
             lastFall = now;
         }
 
@@ -752,7 +792,9 @@ final class GameLoopTimer extends AnimationTimer {
 
         int linesCleared = controller.getLineCount() - oldLines;
         int newScore = controller.getScore();
-        if (newScore > oldScore) {
+        // ソフトドロップの +1 は毎秒約25回入るため、小さな加点ではポップアップを出さない。
+        // ロック（+20）・ハードドロップ・ライン消去など意味のある加点だけ表示する。
+        if (newScore - oldScore >= MIN_SCORE_POPUP) {
             hudPane.showScorePopup(newScore - oldScore);
         }
 
@@ -896,6 +938,15 @@ final class GameLoopTimer extends AnimationTimer {
         pendingTrigger = null;
         pendingPriority = -1;
         pendingForce = false;
+    }
+
+    /**
+     * ポーズ／演出フリーズ解除時に、セリフ系の System.nanoTime 基準タイムスタンプを
+     * 停止時間ぶんずらす。これが無いと長時間ポーズ後に IDLE セリフが即発火する。
+     */
+    private void shiftDialogueTimers(long pausedNanos) {
+        lastClearNanos += pausedNanos;
+        lastDialogueNanos += pausedNanos;
     }
 
     /**
