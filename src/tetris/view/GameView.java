@@ -32,7 +32,8 @@ public class GameView {
     private final CharacterPane characterPane;
     private final HudPane hudPane;
 
-    private int layoutIndex = 0;
+    // 起動直後から NEXT 隣接クラスタを表示する。
+    private int layoutIndex = 4;
 
     public GameView() {
         this.root = new Pane();

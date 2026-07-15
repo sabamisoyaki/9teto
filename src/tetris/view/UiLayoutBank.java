@@ -44,7 +44,15 @@ public final class UiLayoutBank {
             new Point2D(910, 740),   // hold
             new Point2D(910, 560),   // next
             new Point2D(1440, 0),    // character
-            new Point2D(910, 120))   // hud
+            new Point2D(910, 120)),  // hud
+
+        // 5) NEXT_CLUSTER: NEXT/HOLD の直下にバストアップのキャラを置く
+        new UiLayout("NEXT_CLUSTER",
+            new Point2D(200, 120),   // playfield
+            new Point2D(1120, 250),  // hold
+            new Point2D(1120, 60),   // next
+            new Point2D(1150, 430),  // character
+            new Point2D(1560, 60))   // hud
     );
 
     public static UiLayout get(int index) {
