@@ -56,7 +56,6 @@ import tetris.view.Particle;
 import tetris.view.Render;
 import tetris.view.UiSkin;
 import tetris.view.UiSkinBank;
-import tetris.view.UiSwapAnimator;
 
 public class Main extends Application {
 
@@ -638,7 +637,6 @@ final class GameLoopTimer extends AnimationTimer {
 
     // ワールド回転演出
     // 演出中はゲーム進行（入力・落下）を止めて、回転直後の理不尽な死を防ぐ
-    private final UiSwapAnimator uiSwapAnimator;
     private boolean effectFrozen = false;
     private long freezeStartNanos = 0;
     private long freezeUntilNanos = 0;
@@ -690,8 +688,6 @@ final class GameLoopTimer extends AnimationTimer {
         this.hidePauseOverlay = hidePauseOverlay;
         this.showCountdown = showCountdown;
         this.hideCountdown = hideCountdown;
-        this.uiSwapAnimator = new UiSwapAnimator(
-                hudPane, nextPane, holdPane, view.getCharacterPane(), view.getHintPane());
     }
 
     public boolean isGamePaused()  { return isPaused; }
@@ -944,15 +940,20 @@ final class GameLoopTimer extends AnimationTimer {
     /**
      * ワールド回転の演出をまとめて発火する唯一の入口。
      * - 盤面: 回転前のスナップショットを 90°CW に回しながら新盤面へクロスフェード
-     * - 周辺UI: フリップしながら次のスキンへ一括入れ替え
+     * - 周辺UI: 次のフロアのスキンへ即時入れ替え（演出は挟まない）
      * - ゲーム進行: EFFECT_FREEZE_NANOS の間フリーズ
+     *
+     * かつてはここに「UIパネルのフリップ入れ替え」と「キャラの寄り演出」も乗っていたが、
+     *   - 寄り演出が画面中央＝盤面の真上を一瞬完全に覆う
+     *   - フリップも寄りも、構図ラフの言う「回転で構図が遷移する」とは別物
+     * という理由で外した。戻すなら git 履歴（proto/character-overlay）を参照。
+     * 盤面のクロスフェードだけは「積みが 90°回った」ことを見せる役があるので残す。
      */
     private void onWorldRotated(long now) {
         UiSkin skin = UiSkinBank.forStep(
                 controller.getWorldRotateStep() + debugSkinShift);
         view.getPlayFieldPane().playWorldRotateTransition(skin);
-        uiSwapAnimator.play(() -> view.applySkin(skin));
-        view.playApproach(skin);
+        view.applySkin(skin);
         view.getPlayFieldPane().triggerShake();
         proposeDialogue(DialogueTrigger.WORLD_ROTATE, 80, true);
 
@@ -971,8 +972,7 @@ final class GameLoopTimer extends AnimationTimer {
         debugSkinShift = (debugSkinShift + 1) % UiSkinBank.skinCount();
         UiSkin skin = UiSkinBank.forStep(
                 controller.getWorldRotateStep() + debugSkinShift);
-        uiSwapAnimator.play(() -> view.applySkin(skin));
-        view.playApproach(skin);
+        view.applySkin(skin);
         return skin.name;
     }
 

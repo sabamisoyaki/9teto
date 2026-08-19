@@ -25,7 +25,6 @@ public class GameView {
     private final Rectangle characterFrontClip;
     private final HudPane hudPane;
     private final KeyHintPane hintPane;
-    private final CharacterApproachPane approachPane;
 
     /** 盤面の手前へ重ねる線の濃さ。上げると絵は活きるがミノが読みにくくなる */
     private static final double FRONT_LINE_OPACITY = 0.45;
@@ -46,7 +45,6 @@ public class GameView {
         this.characterPane = new CharacterPane();
         this.hudPane = new HudPane();
         this.hintPane = new KeyHintPane(UiMetrics.SCREEN_W - UiMetrics.MARGIN * 2, UiMetrics.HINT_H);
-        this.approachPane = new CharacterApproachPane(WINDOW_WIDTH, WINDOW_HEIGHT, PLAY_FIELD_SIZE);
 
         // 手前レイヤー = 立ち絵と同じ絵を、盤面の矩形にクリップして薄く重ねたもの。
         // ラフでは腕や脚が赤枠の手前を横切っているが、そのための別絵を用意しなくても
@@ -69,8 +67,7 @@ public class GameView {
                 characterPane,
                 playFieldPane,
                 characterFrontView,
-                holdPane, nextPane, hudPane, hintPane,
-                approachPane);
+                holdPane, nextPane, hudPane, hintPane);
 
         ImageAssets.addBackdropView(root, ImageAssets.BASE_LAYER, WINDOW_WIDTH, WINDOW_HEIGHT, Backdrop.FAR);
         applyLayout(UiLayoutBank.get(layoutIndex));
@@ -86,12 +83,6 @@ public class GameView {
     public CharacterPane getCharacterPane()      { return characterPane; }
     public HudPane getHudPane()                  { return hudPane; }
     public KeyHintPane getHintPane()             { return hintPane; }
-    public CharacterApproachPane getApproachPane() { return approachPane; }
-
-    /** 回転連動「近づいてくる」演出を最前面レイヤーで再生する */
-    public void playApproach(UiSkin skin) {
-        approachPane.play(skin);
-    }
 
     /** 各パネルを配置定義どおりの様式・座標・サイズへ移す */
     public void applyLayout(UiLayout layout) {
@@ -149,8 +140,8 @@ public class GameView {
     }
 
     /**
-     * 全 UI へ一括でスキンを適用する（演出なしの即時切替）。
-     * ワールドローテート時のアニメーションは UiSwapAnimator / DeviceFramePane 側が担当する。
+     * 全 UI へ一括でスキンを適用する（即時切替）。
+     * ワールド回転時もこれをそのまま呼ぶ（間に挟む演出は持たない）。
      */
     public void applySkin(UiSkin skin) {
         this.currentSkin = skin;

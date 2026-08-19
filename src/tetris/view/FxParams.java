@@ -9,37 +9,16 @@ package tetris.view;
  */
 public final class FxParams {
 
-    // ---- ワールド回転（DeviceFramePane.playWorldRotateTransition） ----
+    // ---- ワールド回転のクロスフェード（DeviceFramePane.playWorldRotateTransition） ----
     public static final int WORLD_ROTATE_BOARD_MS = 450;
     public static final int WORLD_ROTATE_FLASH_MS = 400;
     public static final double WORLD_ROTATE_FLASH_PEAK = 0.35;
-
-    // ---- UIスキン入れ替えフリップ（UiSwapAnimator） ----
-    public static final int UI_SWAP_FOLD_MS = 200;
-    public static final int UI_SWAP_OPEN_MS = 240;
 
     // ---- 傾き（増築の“貼り付け角度”） ----
     // 九龍城の密度は「同じ部品の反復」で作る。角度をこの2種に絞ることで、
     // 要素をいくら増やしても画面が散らからない。新しい角度を足さないこと。
     public static final double TILT_A = -6.0;
     public static final double TILT_B = 3.0;
-
-    // ---- 回転連動キャラズーム（CharacterApproachPane） ----
-    // 総尺はフリーズ窓（EFFECT_FREEZE_NANOS の導出元）以内に収めること。
-    // 超える場合は下の Math.max(...) に CHAR_APPROACH_MS を加え、フリーズ側も追従させる。
-    public static final int CHAR_APPROACH_MS = 420;
-    public static final double CHAR_APPROACH_FROM_SCALE = 0.72;
-    public static final double CHAR_APPROACH_OVERSHOOT = 1.06;
-    public static final double CHAR_APPROACH_RISE_PX = 80;
-
-    // ---- 回転演出中のゲーム進行フリーズ（GameLoopTimer） ----
-    // 固定値ではなく「最も長い演出時間 + マージン」で導出する。
-    // 演出時間を伸ばしたときに「盤面が滑走中に操作が再開する」事故を構造的に防ぐ。
-    // マージンを大きくしすぎると操作性が悪化するため 100ms 以内に留めること。
-    public static final int FREEZE_MARGIN_MS = 60;
-    public static final long EFFECT_FREEZE_NANOS =
-        (Math.max(WORLD_ROTATE_BOARD_MS, UI_SWAP_FOLD_MS + UI_SWAP_OPEN_MS) + FREEZE_MARGIN_MS)
-            * 1_000_000L;
 
     // ---- ライン消去フラッシュ（GameLoopTimer.drawLineFlash） ----
     public static final long LINE_FLASH_DURATION_NANOS = 250_000_000L;
@@ -54,6 +33,16 @@ public final class FxParams {
     // ---- 盤面シェイク（DeviceFramePane.triggerShake） ----
     public static final double SHAKE_AMPLITUDE_PX = 9;
     public static final int SHAKE_MS = 290;
+
+    // ---- 回転演出中のゲーム進行フリーズ（GameLoopTimer） ----
+    // 固定値ではなく「最も長い演出時間 + マージン」で導出する。
+    // 演出時間を伸ばしたときに「盤面が滑走中に操作が再開する」事故を構造的に防ぐ。
+    // マージンを大きくしすぎると操作性が悪化するため 100ms 以内に留めること。
+    //
+    // フリップ・寄り演出を外したので、今の最長は盤面のクロスフェード（450ms）。
+    public static final int FREEZE_MARGIN_MS = 60;
+    public static final long EFFECT_FREEZE_NANOS =
+        (Math.max(WORLD_ROTATE_BOARD_MS, SHAKE_MS) + FREEZE_MARGIN_MS) * 1_000_000L;
 
     // ---- ポップアップ（PopupFx 経由） ----
     public static final int PLAYFIELD_POPUP_MS = 900;

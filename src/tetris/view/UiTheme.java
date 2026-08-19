@@ -69,7 +69,7 @@ public enum UiTheme {
     public final String textColor;
     /** アクセントカラー (CSS hex) */
     public final String accentColor;
-    /** フラッシュ演出用 JavaFX Color */
+    /** フラッシュ演出用 JavaFX Color（回転時のクロスフェードで焚く） */
     public final Color flashColor;
     /** ゲームボード全体の不透明度 (0.0〜1.0) */
     public final double boardOpacity;

@@ -28,7 +28,11 @@ public final class UiSkin {
     public final Path playfieldBgImage;
     /** キャラクター立ち絵（null可 → デフォルト） */
     public final Path characterImage;
-    /** 回転連動「近づいてくる」演出用の寄り差分（null可 → characterImage へフォールバック） */
+    /**
+     * 回転連動「近づいてくる」演出用の寄り差分。
+     * <b>現在この2つは誰も読んでいない</b>（寄り演出は proto/strip-rotate-fx で外した）。
+     * 演出を戻すときにまた要るのでデータだけ残してある。
+     */
     public final Path approachImage;
     /** 寄り演出時にレイヤーへ与える傾き（度）。盤面の 90°回転と揃った決めポーズ用 */
     public final double approachRotate;
