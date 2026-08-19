@@ -1,86 +1,123 @@
 package tetris.view;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Label;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
-import tetris.ResourcePath;
+import tetris.model.Tetromino;
+import tetris.view.UiLayout.Style;
 
+/**
+ * NEXT / HOLD のプレビューパネル。見出し帯（{@link PanelHeader}）＋ミノ表示枠の 2 段構成。
+ *
+ * ミノは盤面と同じセルサイズでは小さすぎて形が読めないので、枠の大きさから毎回
+ * セルサイズを決めて描く（{@link #draw}）。どの配置でも枠いっぱいに大きく出る。
+ */
 public class NextPane extends StackPane {
 
-    private static final Path DEFAULT_BACKGROUND_IMAGE = ResourcePath.of("images", "next-bg.png");
+    private final Canvas previewCanvas;
+    private final PanelBackground backgroundView;
+    private final PanelHeader header;
+    private final Label compactLabel;
 
-    private final Canvas nextCanvas;
-    private final int nextCellSize;
-    private final ImageView backgroundView;
-    private final Label titleLabel;
+    private Style style = Style.PANEL;
+    private UiSkin skin = UiSkinBank.forStep(0);
 
     public NextPane(double width, double height) {
         this(width, height, "NEXT");
     }
 
     public NextPane(double width, double height, String title) {
+        setAlignment(Pos.TOP_LEFT);
+
+        backgroundView = new PanelBackground();
+
+        previewCanvas = new Canvas();
+
+        header = new PanelHeader(title);
+        header.setPadding(new Insets(UiMetrics.PAD, UiMetrics.PAD, 0, UiMetrics.PAD));
+
+        // OVERLAY 用の見出し。帯を持たず、枠の左上に小さな文字を置くだけ
+        compactLabel = new Label(title);
+        compactLabel.setVisible(false);
+        StackPane.setAlignment(compactLabel, Pos.TOP_LEFT);
+        StackPane.setMargin(compactLabel, new Insets(6, 0, 0, 8));
+
+        getChildren().addAll(backgroundView, previewCanvas, header, compactLabel);
+
+        setPaneSize(width, height);
+        // 初期見た目もスキン定義から取る（パレット外の色をここに持たない）
+        applySkin(UiSkinBank.forStep(0));
+    }
+
+    /**
+     * 配置定義の様式を適用する。OVERLAY では見出し帯と壁テクスチャを落とし、
+     * 枠だけ細く残して「立ち絵の上に置かれた小窓」に寄せる。
+     */
+    public void applyStyle(Style newStyle) {
+        this.style = newStyle;
+        boolean compact = newStyle == Style.OVERLAY;
+
+        header.setVisible(!compact);
+        header.setManaged(!compact);
+        compactLabel.setVisible(compact);
+        backgroundView.setVisible(!compact);
+
+        applySkin(skin);
+    }
+
+    /** 配置定義に合わせてパネルの大きさを変える */
+    public void setPaneSize(double width, double height) {
         setPrefSize(width, height);
         setMinSize(width, height);
         setMaxSize(width, height);
-        setAlignment(Pos.CENTER);
-        setStyle("-fx-background-color: rgba(10, 10, 10, 0.75); -fx-border-color: #445566; -fx-border-width: 1px; -fx-border-radius: 5px; -fx-background-radius: 5px;");
+        backgroundView.setBox(width, height);
+        previewCanvas.setWidth(width);
+        previewCanvas.setHeight(height);
+        header.setPrefWidth(width);
+    }
 
-        backgroundView = new ImageView();
-        backgroundView.setFitWidth(width);
-        backgroundView.setFitHeight(height);
+    /**
+     * 見出し帯を除いた表示枠にミノを描く。
+     *
+     * @param grayed HOLD が使用済みのときに true。灰色＋見出しタグで「今は使えない」を示す
+     */
+    public void draw(Render renderer, Tetromino piece, boolean grayed) {
+        header.setTag(grayed ? "LOCKED" : "");
 
-        nextCanvas = new Canvas();
-        nextCanvas.setWidth(width);
-        nextCanvas.setHeight(height);
-        nextCellSize = (int) Math.min(nextCanvas.getWidth() / 4, nextCanvas.getHeight() / 4);
-
-        titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #dcecff; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 4, 0.0, 1, 1);");
-        StackPane.setAlignment(titleLabel, Pos.TOP_LEFT);
-        StackPane.setMargin(titleLabel, new Insets(8, 0, 0, 12));
-
-        getChildren().addAll(backgroundView, nextCanvas, titleLabel);
-
-        loadBackgroundImage(DEFAULT_BACKGROUND_IMAGE);
+        double top = style == Style.OVERLAY
+                ? 26                                       // 小さな見出し文字ぶんだけ空ける
+                : UiMetrics.PAD + UiMetrics.HEADER_H;
+        renderer.drawPreview(previewCanvas.getGraphicsContext2D(), piece,
+                UiMetrics.PAD, top,
+                getWidth() - UiMetrics.PAD * 2,
+                getHeight() - top - UiMetrics.PAD,
+                grayed);
     }
 
     // ============================================================
     //  スキン適用（ワールドローテートごとに呼ばれる）
     //  見た目の定義は UiSkinBank に集約されている
     // ============================================================
-    public void applySkin(UiSkin skin) {
-        setStyle(skin.panelStyle());
-
-        titleLabel.setStyle(skin.fontStyle(20)
+    public void applySkin(UiSkin newSkin) {
+        this.skin = newSkin;
+        setStyle(style == Style.OVERLAY ? skin.compactPanelStyle() : skin.panelStyle());
+        header.applySkin(skin);
+        compactLabel.setStyle(skin.fontStyle(UiMetrics.FONT_HINT)
             + " -fx-font-weight: bold;"
-            + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 4, 0.0, 1, 1);"
-            + " -fx-text-fill: " + skin.theme.accentColor + ";");
-
-        loadBackgroundImage(skin.nextBgImage != null ? skin.nextBgImage : DEFAULT_BACKGROUND_IMAGE);
+            + " -fx-text-fill: " + skin.theme.accentColor + ";"
+            + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.9), 4, 0.0, 1, 1);");
+        backgroundView.apply(skin.nextBgImage, ImageAssets.NEXT_BG_DEFAULT, Backdrop.PANEL);
     }
 
     public Canvas getNextCanvas() {
-        return nextCanvas;
-    }
-
-    public int getNextCellSize() {
-        return nextCellSize;
+        return previewCanvas;
     }
 
     public void loadBackgroundImage(Path imagePath) {
-        if (imagePath == null || !Files.exists(imagePath)) {
-            backgroundView.setImage(null);
-            return;
-        }
-
-        Image image = new Image(imagePath.toUri().toString());
-        backgroundView.setImage(image);
+        backgroundView.apply(imagePath, null, Backdrop.PANEL);
     }
 }

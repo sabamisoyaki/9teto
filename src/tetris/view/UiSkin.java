@@ -28,6 +28,10 @@ public final class UiSkin {
     public final Path playfieldBgImage;
     /** キャラクター立ち絵（null可 → デフォルト） */
     public final Path characterImage;
+    /** 回転連動「近づいてくる」演出用の寄り差分（null可 → characterImage へフォールバック） */
+    public final Path approachImage;
+    /** 寄り演出時にレイヤーへ与える傾き（度）。盤面の 90°回転と揃った決めポーズ用 */
+    public final double approachRotate;
 
     public UiSkin(
             String name,
@@ -38,7 +42,9 @@ public final class UiSkin {
             Path hudBgImage,
             Path nextBgImage,
             Path playfieldBgImage,
-            Path characterImage) {
+            Path characterImage,
+            Path approachImage,
+            double approachRotate) {
         this.name = name;
         this.theme = theme;
         this.fontFamily = fontFamily;
@@ -48,6 +54,8 @@ public final class UiSkin {
         this.nextBgImage = nextBgImage;
         this.playfieldBgImage = playfieldBgImage;
         this.characterImage = characterImage;
+        this.approachImage = approachImage;
+        this.approachRotate = approachRotate;
     }
 
     /** パネル共通のベーススタイル（背景色・枠線）を生成する */
@@ -57,6 +65,16 @@ public final class UiSkin {
             + " -fx-border-width: " + borderWidth + "px;"
             + " -fx-border-radius: " + borderRadius + "px;"
             + " -fx-background-radius: " + borderRadius + "px;";
+    }
+
+    /**
+     * OVERLAY 配置向けの軽いパネルスタイル。背景を落として枠だけ残す。
+     * 立ち絵の上に浮く小枠なので、塗りを持つと絵の上に板を貼ったように見える。
+     */
+    public String compactPanelStyle() {
+        return "-fx-background-color: " + KowloonPalette.rgba(KowloonPalette.SHADOW_HEX, 0.55) + ";"
+            + " -fx-border-color: " + KowloonPalette.rgba(theme.accentColor, 0.9) + ";"
+            + " -fx-border-width: 1px;";
     }
 
     /** ラベル共通のフォント指定を生成する */

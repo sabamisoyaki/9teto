@@ -11,29 +11,60 @@ import tetris.ResourcePath;
  *
  * 盤面は 90° 回転×4 で元の向きに戻るため、スキンも 4 周期で循環させる。
  * step 0 = 初期状態（盤面が元の向き）に対応する。
+ *
+ * 世界観は九龍城で統一し、4 ステップを「階層の移動」として見せる
+ * （1F 電気街 → 5F 市場 → 9F 診療所 → RF 屋上 → 1F …）。配色は
+ * {@link KowloonPalette} の 5 色のみ、割り当て表は {@link UiTheme} を参照。
+ *
+ * 全フロアで意図的に共通化しているもの（増やすと画面が散らかるため）:
+ *   - fontFamily … 番地札・張り紙の等幅感で統一
+ *   - borderRadius … 0 固定。増築は角丸にならない
+ *   - 傾き … FxParams.TILT_A / TILT_B の 2 種のみ
+ * フロア差は borderWidth（増築の雑さ）と UiTheme の役割割り当てで作る。
+ *
+ * skin-* 画像は tools/GenerateSkinImages.java で生成したプレースホルダ
+ * （パネル背景 = 基底画像をパレットへデュオトーン化。フロア名の焼き込みは
+ * プレイフィールドのみで、HUD / NEXT は PanelHeader がフロア名を出す、
+ * キャラ = 透過シルエット）。画像が無い環境では各 Pane が基底画像
+ * （hud-bg.png 等）へフォールバックする。
  */
 public final class UiSkinBank {
 
+    /** 全フロア共通のフォント。張り紙・番地札の等幅感を出す */
+    private static final String FONT = "Courier New";
+
     private static final List<UiSkin> SKINS = List.of(
-        new UiSkin("CYBER", UiTheme.CYBER_BLUE,
-            "Courier New", 5, 2,
-            img("hud-bg.png"), img("next-bg.png"), img("playfield-bg.png"),
-            img("character.png")),
+        new UiSkin("1F ARCADE", UiTheme.KOWLOON_ARCADE,
+            FONT, 0, 2,
+            img("skin-kowloon-arcade-hud-bg.png"),
+            img("skin-kowloon-arcade-next-bg.png"),
+            img("skin-kowloon-arcade-playfield-bg.png"),
+            img("skin-kowloon-arcade-character.png"),
+            img("skin-kowloon-arcade-approach.png"), 0),
 
-        new UiSkin("EMBER", UiTheme.EMBER_RED,
-            "Consolas", 0, 3,
-            img("hud-bg.png"), img("next-bg.png"), img("playfield-bg.png"),
-            img("character-rotate-1.png")),
+        new UiSkin("5F MARKET", UiTheme.KOWLOON_MARKET,
+            FONT, 0, 3,
+            img("skin-kowloon-market-hud-bg.png"),
+            img("skin-kowloon-market-next-bg.png"),
+            img("skin-kowloon-market-playfield-bg.png"),
+            img("skin-kowloon-market-character.png"),
+            img("skin-kowloon-market-approach.png"), FxParams.TILT_A),
 
-        new UiSkin("NEON", UiTheme.NEON_GREEN,
-            "Verdana", 14, 2,
-            img("hud-bg.png"), img("next-bg.png"), img("playfield-bg.png"),
-            img("character-rotate-2.png")),
+        new UiSkin("9F CLINIC", UiTheme.KOWLOON_CLINIC,
+            FONT, 0, 2,
+            img("skin-kowloon-clinic-hud-bg.png"),
+            img("skin-kowloon-clinic-next-bg.png"),
+            img("skin-kowloon-clinic-playfield-bg.png"),
+            img("skin-kowloon-clinic-character.png"),
+            img("skin-kowloon-clinic-approach.png"), FxParams.TILT_B),
 
-        new UiSkin("VIOLET", UiTheme.VIOLET,
-            "Georgia", 8, 2,
-            img("hud-bg.png"), img("next-bg.png"), img("playfield-bg.png"),
-            img("character-rotate-3.png"))
+        new UiSkin("RF ROOFTOP", UiTheme.KOWLOON_ROOFTOP,
+            FONT, 0, 4,
+            img("skin-kowloon-rooftop-hud-bg.png"),
+            img("skin-kowloon-rooftop-next-bg.png"),
+            img("skin-kowloon-rooftop-playfield-bg.png"),
+            img("skin-kowloon-rooftop-character.png"),
+            img("skin-kowloon-rooftop-approach.png"), FxParams.TILT_A)
     );
 
     /** ワールド回転ステップ（または任意の連番）に対応するスキンを返す */

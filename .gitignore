@@ -21,3 +21,9 @@ audio/
 
 # Local docs
 docs/
+
+# JVM crash logs (log/ に集約。念のためルートに落ちた分も無視)
+log/*
+!log/.gitkeep
+hs_err_pid*.log
+replay_pid*.log

@@ -2,24 +2,99 @@
 
 ## 画像 (`images/`)
 
+共有パス定数と「存在チェック→ロード→フォールバック」の処理は
+`src/tetris/view/ImageAssets.java` に一元化されている。
+
 | ファイル名 | 使用クラス | 役割 |
 |---|---|---|
-| `base-layer-1920x1080.png` | `Main`, `GameView`, `ConfigPane` | 全画面共通の背景（スタート・ゲーム・ゲームオーバー・コンフィグ） |
-| `end-credit-bg.png` | `Main` | エンドクレジット画面の背景 |
-| `playfield-bg.png` | `UiSkinBank` → `DeviceFramePane` | プレイフィールドの背景 |
-| `hud-bg.png` | `UiSkinBank` → `HudPane` | スコア・ライン表示エリアの背景 |
-| `next-bg.png` | `UiSkinBank` → `NextPane` | NEXT/HOLDミノ表示エリアの背景 |
-| `character.png` | `UiSkinBank` → `CharacterPane` | キャラクター（スキン CYBER / ステップ 0） |
-| `character-rotate-1.png` | `UiSkinBank` → `CharacterPane` | キャラクター（スキン EMBER / ステップ 1） |
-| `character-rotate-2.png` | `UiSkinBank` → `CharacterPane` | キャラクター（スキン NEON / ステップ 2） |
-| `character-rotate-3.png` | `UiSkinBank` → `CharacterPane` | キャラクター（スキン VIOLET / ステップ 3） |
+| `bg-kowloon-base-layer.png` | `Main`, `GameView`, `ConfigPane` | 全画面共通の背景（生成物） |
+| `bg-kowloon-character-panel.png` | `CharacterPane` | キャラクターパネルの背景（生成物） |
+| `bg-kowloon-start.png` | `Main` | スタート画面の専用背景（**未作成**。無ければ base-layer にフォールバック） |
+| `bg-kowloon-game-over.png` | `Main` | ゲームオーバーの専用背景（**未作成**。同上） |
+| `end-credit-bg.png` | `Main` | エンドクレジット画面の背景（唯一残した手描きアート） |
+| `hud-bg.png` | `HudPane` | HUD 背景の既定（スキン画像欠落時のフォールバック） |
+| `next-bg.png` | `NextPane` | NEXT/HOLD 背景の既定 |
+| `playfield-bg.png` | `DeviceFramePane` | プレイフィールド背景の既定 |
+| `character.png` | `CharacterPane` | キャラ立ち絵の既定（スキン画像欠落時のフォールバック） |
+| `skin-kowloon-<フロア>-<部位>.png` ×20 | `UiSkinBank` → 各 Pane | フロア別背景・キャラ（生成物。下記参照） |
+
+> **未使用になった旧アセット**（削除せず images/ に残してある）
+> `base-layer-1920x1080.png` / `start-bg.png` / `game-over-bg.png` /
+> `character-closeup-bg.png`。いずれも独自の看板・文字・別UIを持つ1枚絵で、
+> 前景の情報（スコア・NEXT・盤面）と競合していたため外した。
+> 戻す場合は `ImageAssets` のパス定数を差し替えるだけでよい。
+
+### 九龍城パレット（配色の基準）
+
+UI に出る色は **`src/tetris/view/KowloonPalette.java` の 5 色だけ**で組む。
+密度を上げても画面が濁らない条件は「色数を増やさないこと」なので、
+各 View に新しい hex を直書きしない。
+
+| 役割 | HEX | 用途 |
+|---|---|---|
+| ベース（暗い青緑） | `#214743` | パネル背景・湿ったコンクリート |
+| 影（濡れた煤黒） | `#171C1B` | 最暗部・パネル背景 |
+| 光（病的な蛍光灯色） | `#B7C89A` | **全フロア共通のテキスト色**・フラッシュ |
+| 差し色（錆びた赤橙） | `#9A4B32` | 枠線・REN 等の補助ポップアップ |
+| 看板（褪せたネオン赤） | `#C83F4D` | アクセント・警告・T-Spin |
+
+フロア（＝ワールド回転ステップ）ごとの割り当て表は `UiTheme` の javadoc を参照。
+**textColor だけは全フロア固定**にしてある（装飾がどれだけ変わっても、
+スコア・NEXT・警告の見え方は変えないため）。傾きは `FxParams.TILT_A / TILT_B` の2種のみ。
+
+### 背景画像（生成物）— 「絵」ではなく「壁」
+
+`tools/GenerateSkinImages.java` が 22 枚を生成する。**生成物もコミットする**:
+
+```
+java tools\GenerateSkinImages.java
+```
+
+用意された1枚絵（サイバーパンクの端末・路地のイラスト等）を加工して背景にすると、
+元絵が独自の看板・文字・別UIを持つため、どれだけぼかしても前景の情報と競合して
+画面が汚れる。そこで背景は**パレット5色だけで手続き的に描く**方式にした。
+
+九龍城の密度は乱雑さではなく「同じ増築ユニットの反復」なので、
+窓・室外機・配管・汚れ筋・床スラブを一定の文法で敷き詰めるだけで、
+**読めない情報を持たないまま密度が出る**。
+
+| 生成物 | サイズ | 備考 |
+|---|---|---|
+| `skin-kowloon-<フロア>-hud-bg.png` | 480×400 | 壁。フロア名は**右下**（左上は見出しラベルの位置） |
+| `skin-kowloon-<フロア>-next-bg.png` | 420×168 | 同上 |
+| `skin-kowloon-<フロア>-playfield-bg.png` | 840×840 | 盤面優先で一番暗く・一番低コントラスト。フロア名は左上 |
+| `skin-kowloon-<フロア>-character.png` / `-approach.png` | 1080×1080 | フロア色の透過シルエット（本番立ち絵ができたら差し替える） |
+| `bg-kowloon-base-layer.png` | 1920×1080 | 全画面。モジュールを大きく取る（細かいと方眼紙に見える） |
+| `bg-kowloon-character-panel.png` | 440×560 | キャラパネルの背景 |
+
+- 調整はツール先頭の SKINS 表（壁の地色・部材色・窓明かり色の3色）と、
+  `drawWall(..., module, contrast, darken)` の引数だけを触る。
+  **前景が乗る面ほど contrast を下げる**のが原則
+- フロアごとに固定シードを使うので再実行冪等
+- JDK のみで動く（JavaFX 不要）。`tools/` は build.bat / pom.xml の対象外で
+  アプリ本体には含まれない
+
+### 背景の引っ込め処理（ランタイム）
+
+`src/tetris/view/Backdrop.java` が、背景 ImageView へ
+ぼかし・脱色・減光・不透明度をまとめて掛ける。**背景として敷く画像は必ずここを通す**。
+
+生成画像は既に静かなのでぼかしはほぼ 0 で、不透明度を下げて
+パネルのパレット色と馴染ませるのが主目的。手描きアートが残る `CREDIT` だけ
+脱色・減光を強めに掛けている。強度を変えたいときは `Backdrop` の表だけを触る。
+
+> **パレット外のまま残っているもの**
+> - ミノ7色（`ShapeType`） … 7 個を瞬時に識別する必要があるため意図的に据え置き
+> - スタート／コンフィグ／ゲームオーバー／エンドクレジットの**文字色** …
+>   背景と暗幕はパレット化済みだが、ラベルの hex はまだ旧配色
 
 > ワールド回転ステップごとの UI（配色・フォント・枠形状・背景画像・キャラ絵）は
 > `src/tetris/view/UiSkinBank.java` の `SKINS` で一元管理している。
 > スキンを増やす／画像を差し替える場合はそこに 1 エントリ追加・編集するだけでよい。
 >
 > パネルの**配置**（位置）は `src/tetris/view/UiLayoutBank.java` の `LAYOUTS` で
-> 一元管理している（CLASSIC / SOUTHPAW / CENTER STAGE / SIDEBAR の4種）。
+> 一元管理している（CLASSIC / SOUTHPAW / CENTER STAGE / SIDEBAR / NEXT_CLUSTER の5種。
+> 起動時の配置は `UiLayoutBank.DEFAULT_LAYOUT_INDEX` = NEXT_CLUSTER）。
 > 各パネルの座標を 1920×1080 上の絶対座標で指定するだけで配置を組み替えられる。
 > スキン（見た目）と配置（位置）は独立しており、自由に組み合わせられる。
 >
@@ -29,10 +104,6 @@
 > - `F3` … 配置（位置）だけを次へ
 >
 > いずれもプレイフィールド上に切り替え後の名前をポップアップ表示する。
-| `start-bg.png` | ― | 未使用（スタート画面専用背景として用意） |
-| `game-over-bg.png` | ― | 未使用（ゲームオーバー画面専用背景として用意） |
-| `character-bg.png` | ― | 未使用（旧キャラクター背景。`character-closeup-bg.png` に置き換え済み） |
-| `character-closeup-bg.png` | `CharacterPane` | キャラクターアップの背景画像。キャラ非表示中に CharacterPane の背景として使用 |
 
 ### 推奨サイズ
 
@@ -44,6 +115,13 @@
 | NEXT 背景 | 840 × 168 px |
 | キャラクター | 1080 × 1080 px（縦長可、`preserveRatio: true`） |
 | キャラアップ背景 | 480 × 1080 px（CharacterPane のサイズに合わせる） |
+
+### 演出パラメータ
+
+演出のタイミング・強度の定数は `src/tetris/view/FxParams.java` に一元化されている
+（ワールド回転・UIフリップ・フリーズ時間・各種フラッシュ・シェイク・ポップアップ・セリフ間隔）。
+フリーズ時間は「最長の演出時間＋マージン」から導出され、演出を伸ばしても操作再開が
+先行しない。ポップアップ演出の共通部品は `src/tetris/view/PopupFx.java`。
 
 ---
 
@@ -87,10 +165,12 @@ SE  上限: AudioClip.play(volume) に seVolume をそのまま渡す（上限 1
 
 ## ファイルが存在しない場合のフォールバック
 
+`ImageAssets` が以下の方針で一律にフォールバックする。
+
 | アセット種別 | フォールバック動作 |
 |---|---|
 | 全画面背景 | 黒背景（`-fx-background-color: black`）で代替 |
-| パネル背景（HUD 等） | 背景なし（透過）で継続 |
-| キャラクター画像 | 画像なし（空欄）で継続 |
+| パネル背景（HUD 等） | スキン画像 → 既定画像 → 背景なし（透過）の順 |
+| キャラクター画像 | スキン画像 → `character.png` → 画像なし（空欄）の順 |
 | BGM | BGM なしで起動、ログに `[BGM] Not found` を出力 |
 | SE | そのイベントの SE を無音でスキップ |

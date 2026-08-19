@@ -115,6 +115,8 @@ public class GameController {
     public int getComboCount()        { return comboCount; }
     public int getGameOverStreak()    { return gameOverStreak; }
     public int getMaxGameOverStreak() { return MAX_GAME_OVER_STREAK; }
+    /** ワールド回転までのライン数（HUD のゲージ目盛り数に使う） */
+    public int getLineRotateInterval() { return LINE_ROTATE_INTERVAL; }
 
     /** 次のワールド回転までの残り消去ライン数 */
     public int getLinesUntilRotate() {

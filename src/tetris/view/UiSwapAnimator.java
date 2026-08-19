@@ -16,8 +16,8 @@ import javafx.util.Duration;
  */
 public final class UiSwapAnimator {
 
-    private static final Duration FOLD_DURATION = Duration.millis(200);
-    private static final Duration OPEN_DURATION = Duration.millis(240);
+    private static final Duration FOLD_DURATION = Duration.millis(FxParams.UI_SWAP_FOLD_MS);
+    private static final Duration OPEN_DURATION = Duration.millis(FxParams.UI_SWAP_OPEN_MS);
 
     private final Node[] targets;
 

@@ -27,9 +27,6 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.effect.DropShadow;
-import javafx.scene.effect.GaussianBlur;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -43,12 +40,17 @@ import tetris.controller.GameController;
 import tetris.model.Board;
 import tetris.model.GameConfig;
 import tetris.model.SeEvent;
+import tetris.view.Backdrop;
 import tetris.view.DialogueBank;
 import tetris.view.DialogueTrigger;
 import tetris.view.EndCreditPane;
 import tetris.view.ConfigPane;
+import tetris.view.FxParams;
 import tetris.view.GameView;
 import tetris.view.HudPane;
+import tetris.view.ImageAssets;
+import tetris.view.KowloonPalette;
+import tetris.view.MenuStyle;
 import tetris.view.NextPane;
 import tetris.view.Particle;
 import tetris.view.Render;
@@ -66,11 +68,6 @@ public class Main extends Application {
     private MediaPlayer bgmPlayer;
     private Timeline bgmFade; // 実行中のフェードアウト。再生再開時に止めて二重制御を防ぐ
     private final GameConfig config = new GameConfig();
-
-    private static final Path MAIN_BACKGROUND_IMAGE = ResourcePath.of("images", "base-layer-1920x1080.png");
-    private static final Path END_CREDIT_BACKGROUND_IMAGE = ResourcePath.of("images", "end-credit-bg.png");
-    private static final Path START_BACKGROUND_IMAGE = ResourcePath.of("images", "start-bg.png");
-    private static final Path GAME_OVER_BACKGROUND_IMAGE = ResourcePath.of("images", "game-over-bg.png");
 
     private static final String DEFAULT_END_CREDIT_JSON = """
             {
@@ -215,19 +212,21 @@ public class Main extends Application {
     private Scene makeStartScene() {
         stopLoopingAnimations();
         StackPane root = new StackPane();
-        Path bgPath = Files.exists(START_BACKGROUND_IMAGE) ? START_BACKGROUND_IMAGE : MAIN_BACKGROUND_IMAGE;
-        applyBackgroundImage(root, bgPath, true);
+        Path bgPath = Files.exists(ImageAssets.START_BG) ? ImageAssets.START_BG : ImageAssets.BASE_LAYER;
+        ImageAssets.addBackdropView(root, bgPath, WINDOW_WIDTH, WINDOW_HEIGHT, Backdrop.FAR);
 
-        Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(10, 15, 20, 0.6));
+        Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT,
+                KowloonPalette.alpha(KowloonPalette.SHADOW, 0.6));
 
         VBox content = new VBox(40);
         content.setAlignment(Pos.CENTER);
 
         Label title = new Label("TETRIS");
         // -fx-effect は setEffect(glow) と競合するためスタイル文字列には入れない
-        title.setStyle("-fx-font-size: 100px; -fx-font-weight: bold; -fx-text-fill: #f0f0f0; -fx-font-family: 'Courier New';");
+        title.setStyle("-fx-font-size: 100px; -fx-font-weight: bold;"
+            + " -fx-text-fill: " + KowloonPalette.LIGHT_HEX + "; -fx-font-family: 'Courier New';");
 
-        DropShadow glow = new DropShadow(30, Color.web("#66bbff"));
+        DropShadow glow = new DropShadow(30, KowloonPalette.NEON);
         glow.setSpread(0.25);
         title.setEffect(glow);
 
@@ -250,7 +249,7 @@ public class Main extends Application {
         new ParallelTransition(titleTt, titleFade).play();
 
         Label sub = new Label("Press SPACE to Start");
-        sub.setStyle("-fx-font-size: 28px; -fx-text-fill: #aaddff; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 5, 0.0, 1, 1);");
+        sub.setStyle(MenuStyle.prompt());
 
         FadeTransition fade = new FadeTransition(Duration.seconds(1.0), sub);
         fade.setFromValue(1.0);
@@ -260,11 +259,11 @@ public class Main extends Application {
         playLooping(fade);
 
         Label configHint = new Label("C  Config");
-        configHint.setStyle("-fx-font-size: 20px; -fx-text-fill: #6688aa; -fx-font-family: 'Courier New';");
+        configHint.setStyle(MenuStyle.hint());
 
         int hs = config.getHighScore();
         Label highScoreLabel = new Label(hs > 0 ? "Best: " + hs : "");
-        highScoreLabel.setStyle("-fx-font-size: 22px; -fx-text-fill: #99ccff; -fx-font-family: 'Courier New';");
+        highScoreLabel.setStyle(MenuStyle.value(22, KowloonPalette.RUST_HEX));
 
         content.getChildren().addAll(title, sub, configHint, highScoreLabel);
         root.getChildren().addAll(overlay, content);
@@ -328,19 +327,20 @@ public class Main extends Application {
                 cellSize,
                 view.getPlayFieldPane().getPlayfieldCanvas().getWidth(),
                 view.getPlayFieldPane().getPlayfieldCanvas().getHeight());
+        // 枠線はセルサイズ確定後でないと盤面と揃わない（切り捨てぶん Canvas が余る）
+        view.alignPlayFieldFrame(renderer);
+
         NextPane holdPane = view.getHoldPane();
         NextPane nextPane = view.getNextPane();
         HudPane hudPane = view.getHudPane();
+        hudPane.setBestScore(config.getHighScore());
 
         // ポーズオーバーレイとカウントダウンラベル
         StackPane pauseOverlay = buildPauseOverlay();
         pauseOverlay.setVisible(false);
 
         Label countdownLabel = new Label();
-        countdownLabel.setStyle(
-            "-fx-font-size: 160px; -fx-font-weight: bold; -fx-text-fill: #ffffff;" +
-            "-fx-font-family: 'Courier New';" +
-            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.95), 20, 0.0, 0, 0);");
+        countdownLabel.setStyle(MenuStyle.title(160, KowloonPalette.LIGHT_HEX));
         countdownLabel.setVisible(false);
 
         StackPane gameRoot = new StackPane(view.getRoot(), pauseOverlay, countdownLabel);
@@ -352,12 +352,8 @@ public class Main extends Application {
                 controller.getBoard(),
                 controller.getCurrent(),
                 controller.getGhost());
-        renderer.drawNext(
-                holdPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getHold(), 0, 0, !controller.canHold());
-        renderer.drawNext(
-                nextPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getNext(), 0, 0);
+        holdPane.draw(renderer, controller.getHold(), !controller.canHold());
+        nextPane.draw(renderer, controller.getNext(), false);
 
         SePlayer sePlayer = new SePlayer(config);
 
@@ -433,15 +429,16 @@ public class Main extends Application {
     }
 
     private StackPane buildPauseOverlay() {
-        Rectangle bg = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(0, 0, 10, 0.82));
+        Rectangle bg = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT,
+                KowloonPalette.alpha(KowloonPalette.SHADOW, 0.85));
 
         VBox menu = new VBox(28);
         menu.setAlignment(Pos.CENTER);
 
         Label title = new Label("PAUSED");
-        title.setStyle("-fx-font-size: 80px; -fx-font-weight: bold; -fx-text-fill: #cce0ff; -fx-font-family: 'Courier New';");
+        title.setStyle(MenuStyle.title(80, KowloonPalette.LIGHT_HEX));
 
-        String hintStyle = "-fx-font-size: 26px; -fx-text-fill: #88aacc; -fx-font-family: 'Courier New';";
+        String hintStyle = MenuStyle.hint();
         Label h1 = new Label("SPACE / P  ·  Resume");
         Label h2 = new Label("R          ·  New Game");
         Label h3 = new Label("T          ·  Title");
@@ -449,7 +446,14 @@ public class Main extends Application {
         h2.setStyle(hintStyle);
         h3.setStyle(hintStyle);
 
-        menu.getChildren().addAll(title, h1, h2, h3);
+        // ヒントは行頭を揃える。等幅で「キー・動作」の桁を合わせているので、
+        // 1 行ずつ中央寄せすると桁が崩れて読みにくい
+        VBox hints = new VBox(28, h1, h2, h3);
+        hints.setAlignment(Pos.CENTER_LEFT);
+        // 中身の幅に縮める。既定の maxWidth のままだと親いっぱいに広がって左端へ張り付く
+        hints.setMaxWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
+
+        menu.getChildren().addAll(title, hints);
 
         StackPane overlay = new StackPane(bg, menu);
         return overlay;
@@ -466,33 +470,36 @@ public class Main extends Application {
     private Scene makeGameOverScene(int score, int lines) {
         stopLoopingAnimations();
         StackPane root = new StackPane();
-        Path bgPath = Files.exists(GAME_OVER_BACKGROUND_IMAGE) ? GAME_OVER_BACKGROUND_IMAGE : MAIN_BACKGROUND_IMAGE;
-        applyBackgroundImage(root, bgPath, true);
+        Path bgPath = Files.exists(ImageAssets.GAME_OVER_BG) ? ImageAssets.GAME_OVER_BG : ImageAssets.BASE_LAYER;
+        ImageAssets.addBackdropView(root, bgPath, WINDOW_WIDTH, WINDOW_HEIGHT, Backdrop.FAR);
 
-        Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT, Color.rgb(30, 0, 10, 0.7));
+        // ゲームオーバーは煤黒を錆へ寄せた暗幕。暗さは保ったままスタート画面と描き分ける
+        Rectangle overlay = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT,
+                KowloonPalette.alpha(KowloonPalette.SHADOW.interpolate(KowloonPalette.RUST, 0.35), 0.7));
 
         VBox content = new VBox(40);
         content.setAlignment(Pos.CENTER);
 
         Label title = new Label("GAME OVER");
-        title.setStyle("-fx-font-size: 100px; -fx-font-weight: bold; -fx-text-fill: #ff8888; -fx-font-family: 'Courier New'; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 10, 0.0, 2, 2);");
+        title.setStyle(MenuStyle.title(100, KowloonPalette.NEON_HEX));
 
         VBox statsBox = new VBox(15);
         statsBox.setAlignment(Pos.CENTER);
-        statsBox.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6); -fx-padding: 30px 60px; -fx-border-color: #557788; -fx-border-width: 1px; -fx-border-radius: 5px; -fx-background-radius: 5px;");
+        statsBox.setStyle(MenuStyle.box());
         statsBox.setMaxWidth(560);
 
         Label scoreLabel = new Label("Score:      " + score);
-        scoreLabel.setStyle("-fx-font-size: 32px; -fx-text-fill: white; -fx-font-family: 'Courier New';");
+        scoreLabel.setStyle(MenuStyle.value(32, KowloonPalette.LIGHT_HEX));
 
         Label linesLabel = new Label("Lines:      " + lines);
-        linesLabel.setStyle("-fx-font-size: 32px; -fx-text-fill: white; -fx-font-family: 'Courier New';");
+        linesLabel.setStyle(MenuStyle.value(32, KowloonPalette.LIGHT_HEX));
 
         int hs = config.getHighScore();
         boolean isNewRecord = score == hs && score > 0;
         String hsText = "High Score: " + hs + (isNewRecord ? "  ★ NEW!" : "");
         Label highScoreLabel = new Label(hsText);
-        highScoreLabel.setStyle("-fx-font-size: 32px; -fx-text-fill: " + (isNewRecord ? "#ffd700" : "#99ccff") + "; -fx-font-family: 'Courier New';");
+        highScoreLabel.setStyle(MenuStyle.value(32,
+                isNewRecord ? KowloonPalette.NEON_HEX : KowloonPalette.RUST_HEX));
 
         statsBox.getChildren().addAll(scoreLabel, linesLabel, highScoreLabel);
 
@@ -500,9 +507,9 @@ public class Main extends Application {
         hints.setAlignment(Pos.CENTER);
 
         Label retry = new Label("SPACE  ·  Retry");
-        retry.setStyle("-fx-font-size: 24px; -fx-text-fill: #aaddff; -fx-font-family: 'Courier New';");
+        retry.setStyle(MenuStyle.prompt());
         Label titleHint = new Label("T      ·  Title");
-        titleHint.setStyle("-fx-font-size: 24px; -fx-text-fill: #7799bb; -fx-font-family: 'Courier New';");
+        titleHint.setStyle(MenuStyle.hint());
 
         FadeTransition fade = new FadeTransition(Duration.seconds(0.8), retry);
         fade.setFromValue(1.0);
@@ -563,7 +570,7 @@ public class Main extends Application {
     // =====================================================
     private Scene makeEndCreditScene(String creditJson, Runnable onComplete) {
         stopLoopingAnimations();
-        EndCreditPane creditPane = new EndCreditPane(creditJson, END_CREDIT_BACKGROUND_IMAGE);
+        EndCreditPane creditPane = new EndCreditPane(creditJson, ImageAssets.END_CREDIT_BG);
         Scene scene = new Scene(creditPane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
 
         Timeline timeline = creditPane.buildScrollAnimation();
@@ -594,24 +601,6 @@ public class Main extends Application {
         fadeInScene(makeEndCreditScene(creditJson, onComplete));
     }
 
-
-    private void applyBackgroundImage(StackPane target, Path imagePath, boolean applyBlur) {
-        if (imagePath == null || !Files.exists(imagePath)) {
-            target.setStyle("-fx-background-color: black;");
-            return;
-        }
-
-        Image image = new Image(imagePath.toUri().toString());
-        ImageView imageView = new ImageView(image);
-        imageView.setFitWidth(WINDOW_WIDTH);
-        imageView.setFitHeight(WINDOW_HEIGHT);
-
-        if (applyBlur) {
-            imageView.setEffect(new GaussianBlur(5));
-        }
-
-        target.getChildren().add(0, imageView);
-    }
 
     public static void main(String[] args) {
         launch();
@@ -647,16 +636,12 @@ final class GameLoopTimer extends AnimationTimer {
     private final List<Particle> particles = new ArrayList<>();
     private final Random rand = new Random();
 
-    // HUDスコアポップアップを出す最小加点。ソフトドロップの +1 連発を抑制する
-    private static final int MIN_SCORE_POPUP = 5;
-
     // ワールド回転演出
     // 演出中はゲーム進行（入力・落下）を止めて、回転直後の理不尽な死を防ぐ
     private final UiSwapAnimator uiSwapAnimator;
     private boolean effectFrozen = false;
     private long freezeStartNanos = 0;
     private long freezeUntilNanos = 0;
-    private static final long EFFECT_FREEZE_NANOS = 500_000_000L; // 0.5秒
     // F2 デバッグ用: スキンだけを先送りして見た目を確認できる
     private int debugSkinShift = 0;
 
@@ -664,7 +649,6 @@ final class GameLoopTimer extends AnimationTimer {
     private final List<Integer> flashRows = new ArrayList<>();
     private long flashStartNanos = 0;
     private int flashStrength = 1;
-    private static final long FLASH_DURATION_NANOS = 250_000_000L;
 
     // レベルアップ検出（初期値 0 = 初期化フレームでポップアップを出さない）
     private int lastLevel = 0;
@@ -678,8 +662,6 @@ final class GameLoopTimer extends AnimationTimer {
     private DialogueTrigger pendingTrigger = null;
     private int pendingPriority = -1;
     private boolean pendingForce = false;
-    private static final long DIALOGUE_COOLDOWN_NANOS = 2_000_000_000L; // 2秒
-    private static final long IDLE_THRESHOLD_NANOS = 20_000_000_000L;   // 20秒
 
     GameLoopTimer(
             GameController controller,
@@ -709,7 +691,7 @@ final class GameLoopTimer extends AnimationTimer {
         this.showCountdown = showCountdown;
         this.hideCountdown = hideCountdown;
         this.uiSwapAnimator = new UiSwapAnimator(
-                hudPane, nextPane, holdPane, view.getCharacterPane());
+                hudPane, nextPane, holdPane, view.getCharacterPane(), view.getHintPane());
     }
 
     public boolean isGamePaused()  { return isPaused; }
@@ -808,7 +790,7 @@ final class GameLoopTimer extends AnimationTimer {
         int newScore = controller.getScore();
         // ソフトドロップの +1 は毎秒約25回入るため、小さな加点ではポップアップを出さない。
         // ロック（+20）・ハードドロップ・ライン消去など意味のある加点だけ表示する。
-        if (newScore - oldScore >= MIN_SCORE_POPUP) {
+        if (newScore - oldScore >= FxParams.MIN_SCORE_POPUP) {
             hudPane.showScorePopup(newScore - oldScore);
         }
 
@@ -890,7 +872,7 @@ final class GameLoopTimer extends AnimationTimer {
         prevLinesUntilRotate = linesUntilRotate;
 
         // 20秒間ライン消去が無ければ IDLE セリフ（発火後はタイムスタンプをリセット）
-        if (now - lastClearNanos > IDLE_THRESHOLD_NANOS) {
+        if (now - lastClearNanos > FxParams.IDLE_THRESHOLD_NANOS) {
             proposeDialogue(DialogueTrigger.IDLE, 10, false);
             lastClearNanos = now;
         }
@@ -915,17 +897,13 @@ final class GameLoopTimer extends AnimationTimer {
         hudPane.updateScore(controller.getScore());
         hudPane.updateLines(controller.getLineCount());
         hudPane.updateLevel(controller.getLevel());
-        hudPane.updateRotateCountdown(controller.getLinesUntilRotate());
+        hudPane.updateRotateCountdown(
+                controller.getLinesUntilRotate(), controller.getLineRotateInterval());
         hudPane.updateDangerGauge(
                 controller.getGameOverStreak(), controller.getMaxGameOverStreak());
 
-        renderer.drawNext(
-                holdPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getHold(), 0, 0, !controller.canHold());
-
-        renderer.drawNext(
-                nextPane.getNextCanvas().getGraphicsContext2D(),
-                controller.getNext(), 0, 0);
+        holdPane.draw(renderer, controller.getHold(), !controller.canHold());
+        nextPane.draw(renderer, controller.getNext(), false);
     }
 
     /**
@@ -945,7 +923,7 @@ final class GameLoopTimer extends AnimationTimer {
     /** フレーム末尾で1回だけ呼ぶ。クールダウン中は force 指定のセリフのみ通す */
     private void flushDialogue(long now) {
         if (pendingTrigger == null) return;
-        if (pendingForce || now - lastDialogueNanos >= DIALOGUE_COOLDOWN_NANOS) {
+        if (pendingForce || now - lastDialogueNanos >= FxParams.DIALOGUE_COOLDOWN_NANOS) {
             hudPane.showDialogue(dialogue.pick(pendingTrigger));
             lastDialogueNanos = now;
         }
@@ -974,12 +952,13 @@ final class GameLoopTimer extends AnimationTimer {
                 controller.getWorldRotateStep() + debugSkinShift);
         view.getPlayFieldPane().playWorldRotateTransition(skin);
         uiSwapAnimator.play(() -> view.applySkin(skin));
+        view.playApproach(skin);
         view.getPlayFieldPane().triggerShake();
         proposeDialogue(DialogueTrigger.WORLD_ROTATE, 80, true);
 
         effectFrozen = true;
         freezeStartNanos = now;
-        freezeUntilNanos = now + EFFECT_FREEZE_NANOS;
+        freezeUntilNanos = now + FxParams.EFFECT_FREEZE_NANOS;
     }
 
     /**
@@ -993,6 +972,7 @@ final class GameLoopTimer extends AnimationTimer {
         UiSkin skin = UiSkinBank.forStep(
                 controller.getWorldRotateStep() + debugSkinShift);
         uiSwapAnimator.play(() -> view.applySkin(skin));
+        view.playApproach(skin);
         return skin.name;
     }
 
@@ -1030,17 +1010,18 @@ final class GameLoopTimer extends AnimationTimer {
 
     private void drawLineFlash(javafx.scene.canvas.GraphicsContext gc, long now) {
         if (flashRows.isEmpty()) return;
-        double t = (now - flashStartNanos) / (double) FLASH_DURATION_NANOS;
+        double t = (now - flashStartNanos) / (double) FxParams.LINE_FLASH_DURATION_NANOS;
         if (t >= 1.0) {
             flashRows.clear();
             return;
         }
 
         // 消去ライン数で強度を変える: 1ライン=0.5, 4ライン=0.95
-        double peak = 0.35 + 0.15 * flashStrength;
+        double peak = FxParams.LINE_FLASH_BASE + FxParams.LINE_FLASH_PER_LINE * flashStrength;
         double alpha = peak * (1.0 - t);
 
-        gc.setFill(javafx.scene.paint.Color.rgb(255, 255, 255, alpha));
+        // 白ではなく蛍光灯色で光らせる（パレット外の色を画面に出さない）
+        gc.setFill(KowloonPalette.alpha(KowloonPalette.LIGHT, alpha));
         int cs = renderer.getCellSize();
         for (int row : flashRows) {
             gc.fillRect(renderer.toPixelX(0), renderer.toPixelY(row),
