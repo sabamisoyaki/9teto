@@ -66,6 +66,9 @@ xcopy "%FX_BIN%\*.dll"  "package-input\"              /Y /Q >nul
 if exist "images" xcopy "images" "package-input\images\" /E /I /Y /Q >nul
 if exist "audio"  xcopy "audio"  "package-input\audio\"  /E /I /Y /Q >nul
 
+rem images\archive holds unreferenced art kept for reference only. Do not ship it.
+if exist "package-input\images\archive" rmdir /s /q "package-input\images\archive"
+
 rem ---- Step 4: jpackage ----
 echo [4/5] Running jpackage...
 if exist "dist" rmdir /s /q "dist"

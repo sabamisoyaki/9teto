@@ -169,7 +169,7 @@ public final class UiLayoutBank {
             new Box(0, 0, UiMetrics.SCREEN_W, UiMetrics.SCREEN_H),            // character（全画面）
             new Box(R - hudW, UiMetrics.SCREEN_H - L - hudH, hudW, hudH),     // hud（右下の小枠）
             null,
-            ResourcePath.of("images", artFile));
+            ResourcePath.of("images", "mock", artFile));
     }
 
     /** 起動直後に表示する配置（LAYOUTS の並び順に対応） */

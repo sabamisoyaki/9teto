@@ -30,8 +30,15 @@ public final class ImageAssets {
     // 背景は tools/GenerateSkinImages.java が描いた「増築ユニットの壁」を使う。
     // 旧アセット（base-layer-1920x1080.png / start-bg.png / character-closeup-bg.png 等）は
     // それ自体が1枚絵で独自の看板・文字を持っており、前景の情報と競合するため外した。
-    // ファイルは images/ に残してあるので、戻すならここのパスを差し替えるだけでよい。
-    public static final Path BASE_LAYER           = img("bg-kowloon-base-layer.png");
+    // ファイルは images/archive/ に残してあるので、戻すならここのパスを差し替えるだけでよい。
+    //
+    // 置き場の使い分け（ASSETS.md と対にすること）:
+    //   images/          … 手で置く既定・フォールバック
+    //   images/skin/     … GenerateSkinImages の出力
+    //   images/mock/     … BuildRoughMocks の出力
+    //   images/character/… 差し替え用の立ち絵
+    //   images/archive/  … 未参照。配布には含めない
+    public static final Path BASE_LAYER           = skinImg("bg-kowloon-base-layer.png");
     public static final Path END_CREDIT_BG        = img("end-credit-bg.png");
     /** 専用のスタート画面背景。無ければ BASE_LAYER にフォールバックする */
     public static final Path START_BG             = img("bg-kowloon-start.png");
@@ -41,10 +48,15 @@ public final class ImageAssets {
     public static final Path NEXT_BG_DEFAULT      = img("next-bg.png");
     public static final Path PLAYFIELD_BG_DEFAULT = img("playfield-bg.png");
     public static final Path CHARACTER_DEFAULT    = img("character.png");
-    public static final Path CHARACTER_CLOSEUP_BG = img("bg-kowloon-character-panel.png");
+    public static final Path CHARACTER_CLOSEUP_BG = skinImg("bg-kowloon-character-panel.png");
 
     private static Path img(String filename) {
         return ResourcePath.of("images", filename);
+    }
+
+    /** 生成物の置き場。tools/GenerateSkinImages.java の出力先と対にすること */
+    private static Path skinImg(String filename) {
+        return ResourcePath.of("images", "skin", filename);
     }
 
     /** 存在すれば Image、無ければ null */

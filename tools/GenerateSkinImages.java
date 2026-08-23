@@ -34,12 +34,14 @@ import javax.imageio.ImageIO;
  * 乱雑さではなく「同じ増築ユニットの反復」なので、窓・室外機・配管・汚れ筋を
  * 一定の文法で敷き詰めるだけで、読めない情報を持たないまま密度が出る。
  *
- * 生成物（images/ へ出力。コミットする）:
+ * 生成物（images/skin/ へ出力。コミットする）:
  *   skin-<フロア>-hud-bg.png  (480x400) / -next-bg.png (420x168)
  *   skin-<フロア>-playfield-bg.png (840x840)
  *     … 増築ユニットの壁。playfield は盤面の視認優先で一番コントラストが低い
  *   skin-<フロア>-character.png / -approach.png (1080x1080)
- *     … フロア色の透過シルエット（本番立ち絵ができたら差し替える）
+ *     … フロア色の透過シルエット。本番の立ち絵は images/character/<フロア名>.png へ
+ *       置く（例: images/character/1F-ARCADE.png）。ゲーム側はそちらを優先し、
+ *       このツールは images/character/ を一切書かないので絵が消えることはない
  *   bg-kowloon-base-layer.png (1920x1080) … 全画面共通の背景
  *   bg-kowloon-character-panel.png (440x560) … キャラパネルの背景
  *
@@ -71,6 +73,8 @@ public class GenerateSkinImages {
     };
 
     private static final File IMAGES_DIR = new File("images");
+    /** 生成物の出力先。手で置くアセットと混ざらないようサブフォルダへ分けている */
+    private static final File OUT_DIR = new File(IMAGES_DIR, "skin");
     private static final int CHARACTER_SIZE = 1080;
 
     public static void main(String[] args) throws IOException {
@@ -78,6 +82,7 @@ public class GenerateSkinImages {
             System.err.println("[ERROR] images/ が見つかりません。リポジトリルートで実行してください。");
             System.exit(1);
         }
+        OUT_DIR.mkdirs();
 
         int count = 0;
         for (Skin skin : SKINS) {
@@ -100,6 +105,7 @@ public class GenerateSkinImages {
             count += write(field, "skin-" + skin.name + "-playfield-bg.png");
 
             count += write(drawCharacterSilhouette(skin), "skin-" + skin.name + "-character.png");
+            warnIfOverridden(skin);
             count += write(drawApproachSilhouette(skin), "skin-" + skin.name + "-approach.png");
 
         }
@@ -112,7 +118,7 @@ public class GenerateSkinImages {
         count += write(drawWall(440, 560, baseSkin, 9002, 46, 0.40, 0.30),
                 "bg-kowloon-character-panel.png");
 
-        System.out.println("Done: " + count + " files -> " + IMAGES_DIR.getPath() + File.separator);
+        System.out.println("Done: " + count + " files -> " + OUT_DIR.getPath() + File.separator);
     }
 
     // ============================================================
@@ -386,8 +392,20 @@ public class GenerateSkinImages {
         return new Color(c.getRed(), c.getGreen(), c.getBlue(), Math.max(0, Math.min(255, a)));
     }
 
+    /**
+     * images/character/ に本番の立ち絵が置かれているフロアを知らせる。
+     * そのフロアではシルエットは表示されないので、生成しただけで
+     * 「差し替わった」と勘違いしないように出しておく。
+     */
+    private static void warnIfOverridden(Skin skin) {
+        File art = new File(new File(IMAGES_DIR, "character"), skin.label.replace(' ', '-') + ".png");
+        if (art.isFile()) {
+            System.out.println("    ^ not shown: " + art.getPath() + " overrides it");
+        }
+    }
+
     private static int write(BufferedImage img, String filename) throws IOException {
-        File dest = new File(IMAGES_DIR, filename);
+        File dest = new File(OUT_DIR, filename);
         ImageIO.write(img, "png", dest);
         System.out.println("  " + dest.getPath());
         return 1;

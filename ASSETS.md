@@ -5,10 +5,23 @@
 共有パス定数と「存在チェック→ロード→フォールバック」の処理は
 `src/tetris/view/ImageAssets.java` に一元化されている。
 
+置き場は**誰が置くか**で分けている。ツールの出力先とアプリの参照先は
+必ず対で直すこと（`GenerateSkinImages.OUT_DIR` ↔ `UiSkinBank.img()` など）。
+
+```
+images/
+  *.png        手で置く既定・フォールバック（hud-bg / next-bg / playfield-bg /
+               character / end-credit-bg）
+  skin/        tools/GenerateSkinImages.java の出力（22点）
+  mock/        tools/BuildRoughMocks.java の出力（2点）
+  character/   差し替え用の立ち絵（4点）。ツールは書き込まない
+  archive/     未参照。配布からは除外される（package.bat が消す）
+```
+
 | ファイル名 | 使用クラス | 役割 |
 |---|---|---|
-| `bg-kowloon-base-layer.png` | `Main`, `GameView`, `ConfigPane` | 全画面共通の背景（生成物） |
-| `bg-kowloon-character-panel.png` | `CharacterPane` | キャラクターパネルの背景（生成物） |
+| `skin/bg-kowloon-base-layer.png` | `Main`, `GameView`, `ConfigPane` | 全画面共通の背景（生成物） |
+| `skin/bg-kowloon-character-panel.png` | `CharacterPane` | キャラクターパネルの背景（生成物） |
 | `bg-kowloon-start.png` | `Main` | スタート画面の専用背景（**未作成**。無ければ base-layer にフォールバック） |
 | `bg-kowloon-game-over.png` | `Main` | ゲームオーバーの専用背景（**未作成**。同上） |
 | `end-credit-bg.png` | `Main` | エンドクレジット画面の背景（唯一残した手描きアート） |
@@ -16,13 +29,18 @@
 | `next-bg.png` | `NextPane` | NEXT/HOLD 背景の既定 |
 | `playfield-bg.png` | `DeviceFramePane` | プレイフィールド背景の既定 |
 | `character.png` | `CharacterPane` | キャラ立ち絵の既定（スキン画像欠落時のフォールバック） |
-| `skin-kowloon-<フロア>-<部位>.png` ×20 | `UiSkinBank` → 各 Pane | フロア別背景・キャラ（生成物。下記参照） |
+| `skin/skin-kowloon-<フロア>-<部位>.png` ×20 | `UiSkinBank` → 各 Pane | フロア別背景・キャラ（生成物。下記参照） |
+| `mock/mock-rough-a.png` / `-b.png` | `UiLayoutBank` → `CharacterPane` | 構図ラフの OVERLAY モック（生成物） |
+| `character/<フロア名>.png` ×4 | `UiSkinBank` → `CharacterPane` | **手描きの立ち絵はここへ置く**（下記参照） |
 
-> **未使用になった旧アセット**（削除せず images/ に残してある）
-> `base-layer-1920x1080.png` / `start-bg.png` / `game-over-bg.png` /
-> `character-closeup-bg.png`。いずれも独自の看板・文字・別UIを持つ1枚絵で、
-> 前景の情報（スコア・NEXT・盤面）と競合していたため外した。
-> 戻す場合は `ImageAssets` のパス定数を差し替えるだけでよい。
+> **未参照アセットは `images/archive/` へ退避してある**（削除はしていない）。
+> 旧1枚絵 4 点（`base-layer-1920x1080.png` / `start-bg.png` / `game-over-bg.png` /
+> `character-closeup-bg.png`）は、独自の看板・文字・別UIを持つ1枚絵で前景の情報
+> （スコア・NEXT・盤面）と競合していたため外した。戻す場合は `ImageAssets` の
+> パス定数を `images/archive/` 側へ差し替えるだけでよい。
+> 旧スキン 20 点（`skin-cyber-*` / `skin-ember-*` / `skin-neon-*` / `skin-violet-*`）は
+> 一度も参照されておらず、現在の生成ツールの `SKINS` 表からも外れているので
+> 再生成もされない。詳細は `images/archive/README.md`。
 
 ### 九龍城パレット（配色の基準）
 
@@ -44,7 +62,8 @@ UI に出る色は **`src/tetris/view/KowloonPalette.java` の 5 色だけ**で�
 
 ### 背景画像（生成物）— 「絵」ではなく「壁」
 
-`tools/GenerateSkinImages.java` が 22 枚を生成する。**生成物もコミットする**:
+`tools/GenerateSkinImages.java` が `images/skin/` へ 22 枚を生成する。
+**生成物もコミットする**:
 
 ```
 java tools\GenerateSkinImages.java
@@ -63,7 +82,7 @@ java tools\GenerateSkinImages.java
 | `skin-kowloon-<フロア>-hud-bg.png` | 480×400 | 壁。フロア名は**右下**（左上は見出しラベルの位置） |
 | `skin-kowloon-<フロア>-next-bg.png` | 420×168 | 同上 |
 | `skin-kowloon-<フロア>-playfield-bg.png` | 840×840 | 盤面優先で一番暗く・一番低コントラスト。フロア名は左上 |
-| `skin-kowloon-<フロア>-character.png` / `-approach.png` | 1080×1080 | フロア色の透過シルエット（本番立ち絵ができたら差し替える） |
+| `skin-kowloon-<フロア>-character.png` / `-approach.png` | 1080×1080 | フロア色の透過シルエット（本番の絵は `images/character/` へ。下記） |
 | `bg-kowloon-base-layer.png` | 1920×1080 | 全画面。モジュールを大きく取る（細かいと方眼紙に見える） |
 | `bg-kowloon-character-panel.png` | 440×560 | キャラパネルの背景 |
 
@@ -73,6 +92,30 @@ java tools\GenerateSkinImages.java
 - フロアごとに固定シードを使うので再実行冪等
 - JDK のみで動く（JavaFX 不要）。`tools/` は build.bat / pom.xml の対象外で
   アプリ本体には含まれない
+
+### キャラ立ち絵の差し替え
+
+立ち絵**だけ**は生成物と別に置き場所を持つ。`images/character/` の PNG があれば
+`UiSkinBank.character()` がそちらを優先し、無ければ生成シルエットへ落ちる。
+
+| ファイル | 出るフロア |
+|---|---|
+| `images/character/1F-ARCADE.png` | 1F ARCADE |
+| `images/character/5F-MARKET.png` | 5F MARKET |
+| `images/character/9F-CLINIC.png` | 9F CLINIC |
+| `images/character/RF-ROOFTOP.png` | RF ROOFTOP |
+
+- 差し替えは**このファイルを上書きするだけ**。ビルドは要らないが、
+  判定はクラス初期化時の 1 回だけなのでアプリは起動し直す
+- 消せば `images/skin/skin-kowloon-<フロア>-character.png` へ落ちる（消しても壊れない）
+- `tools/GenerateSkinImages.java` は `images/character/` へ**書き込まない**ので、
+  生成の再実行で手描きの絵が消えることはない。代わりに
+  「そのフロアはシルエットが表示されない」と知らせる行が出る
+- 透過 PNG・1080×1080 基準。縦横比は保たれ、パネルの長辺に合わせて拡大 →
+  上端中央そろえでクリップされる（`CharacterPane.CHARACTER_OVERSCAN`）
+
+`-approach.png`（寄り演出の差分）は**現在どこからも読まれていない**ので、
+差し替えの対象からは外してある（`UiSkin.approachImage` のコメント参照）。
 
 ### 背景の引っ込め処理（ランタイム）
 
@@ -171,6 +214,6 @@ SE  上限: AudioClip.play(volume) に seVolume をそのまま渡す（上限 1
 |---|---|
 | 全画面背景 | 黒背景（`-fx-background-color: black`）で代替 |
 | パネル背景（HUD 等） | スキン画像 → 既定画像 → 背景なし（透過）の順 |
-| キャラクター画像 | スキン画像 → `character.png` → 画像なし（空欄）の順 |
+| キャラクター画像 | `images/character/<フロア名>.png` → 生成シルエット → `character.png` → 画像なし（空欄）の順 |
 | BGM | BGM なしで起動、ログに `[BGM] Not found` を出力 |
 | SE | そのイベントの SE を無音でスキップ |

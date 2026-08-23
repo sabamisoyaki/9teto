@@ -21,14 +21,16 @@ import javax.imageio.ImageIO;
  *      ゲームの盤面矩形にぴったり重なるよう拡大・平行移動して 1920×1080 へ焼く
  *      → ラフの構図がそのまま画面の構図になる（盤面の位置を手で合わせなくてよい）
  *   3. 紙の白地を落として線画だけを残す（線の濃さ → 透明度、色は蛍光灯色）。
- *      赤ベタは盤面が上に乗るので透明にする
+ *      赤ベタ（プレイ領域のマーク）は抜くが、赤で描かれた線は線画として残す
  *
- * 出力: images/mock-rough-a.png / images/mock-rough-b.png
+ * 出力: images/mock/mock-rough-a.png / images/mock/mock-rough-b.png
  */
 public class BuildRoughMocks {
 
     private static final File SOURCE = new File("docs/improvements/improvements/style.jpg");
     private static final File IMAGES_DIR = new File("images");
+    /** 生成物の出力先。手で置くアセットと混ざらないようサブフォルダへ分けている */
+    private static final File OUT_DIR = new File(IMAGES_DIR, "mock");
 
     /** 出力サイズ = 論理解像度 */
     private static final int OUT_W = 1920;
@@ -43,6 +45,13 @@ public class BuildRoughMocks {
     private static final int INK_LUM = 25;
     /** 全体の濃さ。1.0 だとラフが主張しすぎて盤面と competing になる */
     private static final double LINE_OPACITY = 0.85;
+
+    /**
+     * 赤ベタと赤の描線を分ける明るさ。ラフでは同じ赤でも、プレイ領域のベタ塗りは
+     * 薄く（明るさ 160 前後に集中）、腕や髪を描いた線は濃い（〜150）。
+     * ここを境にベタだけ落として線は残す。両方まとめて抜くと構図の真ん中が空になる。
+     */
+    private static final int RED_FILL_LUM = 150;
 
     /**
      * 切り出すコマと、そのコマの赤枠を画面上のどこへ置くか。
@@ -68,6 +77,7 @@ public class BuildRoughMocks {
             System.out.println("Not found: " + SOURCE.getPath());
             return;
         }
+        OUT_DIR.mkdirs();
         BufferedImage sheet = ImageIO.read(SOURCE);
         System.out.println("source: " + sheet.getWidth() + "x" + sheet.getHeight());
 
@@ -120,7 +130,14 @@ public class BuildRoughMocks {
         return out;
     }
 
-    /** 紙の白地を透明に、線を蛍光灯色に。赤ベタ（プレイ領域）は透明にする */
+    /**
+     * 紙の白地を透明に、線を蛍光灯色にする。
+     *
+     * 赤ベタ（プレイ領域のマーク）は盤面が上に乗るので落とす。ただし落とすのは
+     * ベタだけで、同じ赤でも濃い方は腕や髪を描いている線なので線画として残す
+     * （{@link #RED_FILL_LUM}）。赤を一律で抜くと構図の真ん中が空白になる。
+     * 赤の検出（{@link #findRedBox}）は盤面との位置合わせに使うので別途残してある。
+     */
     private static BufferedImage toLineArt(BufferedImage src) {
         BufferedImage out = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < src.getHeight(); y++) {
@@ -128,10 +145,10 @@ public class BuildRoughMocks {
                 int rgb = src.getRGB(x, y);
                 int r = (rgb >> 16) & 0xFF, gg = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
 
-                if (isRed(r, gg, b)) {
-                    continue; // 盤面が乗る領域。線も含めて抜く
-                }
                 int lum = (r * 30 + gg * 59 + b * 11) / 100;
+                if (isRed(r, gg, b) && lum >= RED_FILL_LUM) {
+                    continue; // 赤ベタ。盤面が乗るので抜く
+                }
                 double t = clampD((lum - INK_LUM) / (double) (PAPER_LUM - INK_LUM), 0, 1);
                 int alpha = (int) (255.0 * (1.0 - t) * LINE_OPACITY);
                 if (alpha <= 2) continue;
@@ -172,7 +189,7 @@ public class BuildRoughMocks {
     }
 
     private static int write(BufferedImage img, String filename) throws IOException {
-        File out = new File(IMAGES_DIR, filename);
+        File out = new File(OUT_DIR, filename);
         ImageIO.write(img, "png", out);
         System.out.println("  " + out.getPath());
         return 1;
