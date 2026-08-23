@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -39,7 +38,10 @@ import javafx.util.Duration;
 import tetris.controller.GameController;
 import tetris.model.Board;
 import tetris.model.GameConfig;
+import tetris.model.Rng;
+import tetris.model.RngHub;
 import tetris.model.SeEvent;
+import tetris.model.SevenBagRandomizer;
 import tetris.view.Backdrop;
 import tetris.view.DialogueBank;
 import tetris.view.DialogueTrigger;
@@ -74,6 +76,15 @@ public class Main extends Application {
      */
     static boolean shotMode = false;
 
+    /** 撮影モードの乱数シード。固定なので何度撮っても同じ絵になる */
+    private static final long SHOT_SEED = 20260821L;
+
+    /**
+     * このプレイの乱数の元。makeGameScene() で引き直すので、リトライすると
+     * 別のミノ順になる（-Dgame.seed 指定時を除く）。
+     */
+    private RngHub rngHub;
+
     static final String DEFAULT_END_CREDIT_JSON = """
             {
               "title": "THANK YOU FOR PLAYING",
@@ -87,6 +98,11 @@ public class Main extends Application {
 
     @Override
     public void start(Stage stage) {
+        // 保険。シーン構築中やイベントハンドラ内のエラーを拾う。
+        // ゲームループ内のエラーは GameLoopTimer.handle() 側で受ける
+        Thread.setDefaultUncaughtExceptionHandler(
+                (thread, e) -> ErrorDump.write(e, rngHub));
+
         this.primaryStage = stage;
         stage.setTitle("TETRIS");
         stage.setResizable(false);
@@ -397,7 +413,13 @@ public class Main extends Application {
         Label countdownLabel = parts.countdownLabel;
         StackPane gameRoot = parts.gameRoot;
 
-        GameController controller = new GameController();
+        rngHub = shotMode
+                ? RngHub.of(SHOT_SEED)
+                : RngHub.fromSystemProperty();
+        System.out.println("[Rng] seed=" + rngHub.seed());
+
+        GameController controller = new GameController(
+                new SevenBagRandomizer(rngHub.stream("piece")));
         NextPane holdPane = view.getHoldPane();
         NextPane nextPane = view.getNextPane();
         HudPane hudPane = view.getHudPane();
@@ -427,6 +449,7 @@ public class Main extends Application {
         };
 
         GameLoopTimer timer = new GameLoopTimer(
+                rngHub,
                 controller,
                 view,
                 renderer,
@@ -705,7 +728,8 @@ final class GameLoopTimer extends AnimationTimer {
 
     private long lastFall = 0;
     private final List<Particle> particles = new ArrayList<>();
-    private final Random rand = new Random();
+    private final RngHub hub;
+    private final Rng fxRng;
 
     // ワールド回転演出
     // 演出中はゲーム進行（入力・落下）を止めて、回転直後の理不尽な死を防ぐ
@@ -724,7 +748,7 @@ final class GameLoopTimer extends AnimationTimer {
     private int lastLevel = 0;
 
     // セリフ制御: 1フレーム内で最も優先度の高いトリガーだけを発話する
-    private final DialogueBank dialogue = new DialogueBank();
+    private final DialogueBank dialogue;
     private long lastDialogueNanos = 0;
     private long lastClearNanos = 0;
     private boolean spokeGameStart = false;
@@ -734,6 +758,7 @@ final class GameLoopTimer extends AnimationTimer {
     private boolean pendingForce = false;
 
     GameLoopTimer(
+            RngHub hub,
             GameController controller,
             GameView view,
             Render renderer,
@@ -747,6 +772,9 @@ final class GameLoopTimer extends AnimationTimer {
             Runnable hidePauseOverlay,
             Consumer<Integer> showCountdown,
             Runnable hideCountdown) {
+        this.hub = hub;
+        this.fxRng = hub.stream("fx");
+        this.dialogue = new DialogueBank(hub.stream("dialogue"));
         this.controller = controller;
         this.view = view;
         this.renderer = renderer;
@@ -796,6 +824,19 @@ final class GameLoopTimer extends AnimationTimer {
 
     @Override
     public void handle(long now) {
+        // AnimationTimer 内の例外は JavaFX のパルス処理に飲まれてしまい、
+        // setDefaultUncaughtExceptionHandler まで届かない。ここで自前に受ける
+        try {
+            handleFrame(now);
+        } catch (RuntimeException e) {
+            ErrorDump.write(e, hub);
+            // 壊れたまま 60fps で回すと同じダンプが量産されるので必ず止める
+            stop();
+            gameOverHandler.accept(controller.getScore(), controller.getLineCount());
+        }
+    }
+
+    private void handleFrame(long now) {
         if (isPaused) return;
 
         if (countingDown) {
@@ -1062,11 +1103,11 @@ final class GameLoopTimer extends AnimationTimer {
                 double cx = renderer.toPixelX(col) + cs * 0.5;
 
                 for (int k = 0; k < 5; k++) {
-                    double angle = rand.nextDouble() * 2 * Math.PI;
-                    double speed = 1.5 + rand.nextDouble() * 4.0;
+                    double angle = fxRng.range(0, 2 * Math.PI);
+                    double speed = fxRng.range(1.5, 5.5);
                     double vx = Math.cos(angle) * speed;
                     double vy = Math.sin(angle) * speed - 1.5;
-                    int life = 30 + rand.nextInt(20);
+                    int life = 30 + fxRng.nextInt(20);
                     particles.add(new Particle(cx, cy, vx, vy, color, life));
                 }
             }
@@ -1128,7 +1169,7 @@ final class GameLoopTimer extends AnimationTimer {
         for (int[] cell : trail) {
             double cx = renderer.toPixelX(cell[1]) + cs * 0.5;
             double cy = renderer.toPixelY(cell[0]) + cs * 0.5;
-            particles.add(new Particle(cx, cy, 0, -0.3, bright, 10 + rand.nextInt(6)));
+            particles.add(new Particle(cx, cy, 0, -0.3, bright, 10 + fxRng.nextInt(6)));
         }
     }
 }
