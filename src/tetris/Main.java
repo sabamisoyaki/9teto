@@ -68,7 +68,13 @@ public class Main extends Application {
     private Timeline bgmFade; // 実行中のフェードアウト。再生再開時に止めて二重制御を防ぐ
     private final GameConfig config = new GameConfig();
 
-    private static final String DEFAULT_END_CREDIT_JSON = """
+    /**
+     * 撮影モード（-Dshot.out 指定時）。演出を再生せず最終状態で描くことで、
+     * 何度撮っても同じ絵になるようにする。ShotRunner から参照する。
+     */
+    static boolean shotMode = false;
+
+    static final String DEFAULT_END_CREDIT_JSON = """
             {
               "title": "THANK YOU FOR PLAYING",
               "sections": [
@@ -85,6 +91,17 @@ public class Main extends Application {
         stage.setTitle("TETRIS");
         stage.setResizable(false);
         config.load();
+
+        // 撮影モード: 各画面を順に組んで PNG へ落としたら終了する（shot.bat から使う）。
+        // BGM は初期化しない。音が鳴るうえ MediaPlayer のスレッドが終了を遅らせる
+        String shotOut = System.getProperty("shot.out");
+        if (shotOut != null && !shotOut.isBlank()) {
+            shotMode = true;
+            stage.show();
+            new ShotRunner(this, stage, Path.of(shotOut.trim())).run();
+            return;
+        }
+
         initBgmPlayer();
         showStartScene();
         stage.show();
@@ -157,6 +174,8 @@ public class Main extends Application {
 
     /** 無限ループのアニメーションを登録して再生する（シーン切替時に一括停止される） */
     private void playLooping(Animation anim) {
+        // 撮影モードでは再生しない。脈動や点滅は撮るたびに位相が変わってしまう
+        if (shotMode) return;
         loopingAnimations.add(anim);
         anim.play();
     }
@@ -198,6 +217,11 @@ public class Main extends Application {
     /** 新しいシーンをフェードインで表示する */
     private void fadeInScene(Scene scene) {
         Parent root = scene.getRoot();
+        if (shotMode) { // 撮影モードは演出を挟まず最終状態で差し替える
+            root.setOpacity(1.0);
+            primaryStage.setScene(scene);
+            return;
+        }
         root.setOpacity(0.0);
         primaryStage.setScene(scene);
         FadeTransition in = new FadeTransition(Duration.millis(350), root);
@@ -208,7 +232,7 @@ public class Main extends Application {
     // =====================================================
     //  スタート画面
     // =====================================================
-    private Scene makeStartScene() {
+    Scene makeStartScene() {
         stopLoopingAnimations();
         StackPane root = new StackPane();
         Path bgPath = Files.exists(ImageAssets.START_BG) ? ImageAssets.START_BG : ImageAssets.BASE_LAYER;
@@ -245,7 +269,10 @@ public class Main extends Application {
         FadeTransition titleFade = new FadeTransition(Duration.millis(600), title);
         titleFade.setFromValue(0.0);
         titleFade.setToValue(1.0);
-        new ParallelTransition(titleTt, titleFade).play();
+        // 撮影モードでは再生しない。未再生なら translateY=0 / opacity=1 の最終状態のまま
+        if (!shotMode) {
+            new ParallelTransition(titleTt, titleFade).play();
+        }
 
         Label sub = new Label("Press SPACE to Start");
         sub.setStyle(MenuStyle.prompt());
@@ -288,7 +315,7 @@ public class Main extends Application {
     // =====================================================
     //  コンフィグ画面
     // =====================================================
-    private Scene makeConfigScene() {
+    Scene makeConfigScene() {
         stopLoopingAnimations();
         ConfigPane pane = new ConfigPane(
             config,
@@ -315,10 +342,30 @@ public class Main extends Application {
     // =====================================================
     //  ゲーム画面
     // =====================================================
-    private Scene makeGameScene() {
-        stopLoopingAnimations();
+    /**
+     * ゲーム画面の骨格。本編と撮影モード（ShotRunner）で組み方を共有するために束ねる。
+     * ここに無いもの（GameController / GameLoopTimer / キー入力）は本編だけが持つ。
+     */
+    static final class GameSceneParts {
+        final GameView view;
+        final Render renderer;
+        final StackPane pauseOverlay;
+        final Label countdownLabel;
+        final StackPane gameRoot;
+
+        GameSceneParts(GameView view, Render renderer, StackPane pauseOverlay,
+                       Label countdownLabel, StackPane gameRoot) {
+            this.view = view;
+            this.renderer = renderer;
+            this.pauseOverlay = pauseOverlay;
+            this.countdownLabel = countdownLabel;
+            this.gameRoot = gameRoot;
+        }
+    }
+
+    /** GameView・Render・ポーズ層までを組む（ゲーム進行は含まない） */
+    GameSceneParts buildGameSceneParts() {
         GameView view = new GameView();
-        GameController controller = new GameController();
         int cellSize = Math.min(
                 (int) (view.getPlayFieldPane().getPlayfieldCanvas().getWidth() / Board.COLS),
                 (int) (view.getPlayFieldPane().getPlayfieldCanvas().getHeight() / Board.ROWS));
@@ -329,11 +376,6 @@ public class Main extends Application {
         // 枠線はセルサイズ確定後でないと盤面と揃わない（切り捨てぶん Canvas が余る）
         view.alignPlayFieldFrame(renderer);
 
-        NextPane holdPane = view.getHoldPane();
-        NextPane nextPane = view.getNextPane();
-        HudPane hudPane = view.getHudPane();
-        hudPane.setBestScore(config.getHighScore());
-
         // ポーズオーバーレイとカウントダウンラベル
         StackPane pauseOverlay = buildPauseOverlay();
         pauseOverlay.setVisible(false);
@@ -343,6 +385,23 @@ public class Main extends Application {
         countdownLabel.setVisible(false);
 
         StackPane gameRoot = new StackPane(view.getRoot(), pauseOverlay, countdownLabel);
+        return new GameSceneParts(view, renderer, pauseOverlay, countdownLabel, gameRoot);
+    }
+
+    private Scene makeGameScene() {
+        stopLoopingAnimations();
+        GameSceneParts parts = buildGameSceneParts();
+        GameView view = parts.view;
+        Render renderer = parts.renderer;
+        StackPane pauseOverlay = parts.pauseOverlay;
+        Label countdownLabel = parts.countdownLabel;
+        StackPane gameRoot = parts.gameRoot;
+
+        GameController controller = new GameController();
+        NextPane holdPane = view.getHoldPane();
+        NextPane nextPane = view.getNextPane();
+        HudPane hudPane = view.getHudPane();
+        hudPane.setBestScore(config.getHighScore());
 
         Set<KeyCode> keys = new HashSet<>();
         // 初回描画
@@ -466,7 +525,7 @@ public class Main extends Application {
     // =====================================================
     //  ゲームオーバー画面
     // =====================================================
-    private Scene makeGameOverScene(int score, int lines) {
+    Scene makeGameOverScene(int score, int lines) {
         stopLoopingAnimations();
         StackPane root = new StackPane();
         Path bgPath = Files.exists(ImageAssets.GAME_OVER_BG) ? ImageAssets.GAME_OVER_BG : ImageAssets.BASE_LAYER;
@@ -521,26 +580,34 @@ public class Main extends Application {
         content.getChildren().addAll(title, statsBox, hints);
         root.getChildren().addAll(overlay, content);
 
-        // GAME OVER → スコア → リトライ案内 の順に表示する
-        title.setTranslateY(-60);
-        title.setOpacity(0);
-        TranslateTransition titleSlide = new TranslateTransition(Duration.millis(450), title);
-        titleSlide.setToY(0);
-        FadeTransition titleFade = new FadeTransition(Duration.millis(450), title);
-        titleFade.setToValue(1.0);
-        new ParallelTransition(titleSlide, titleFade).play();
+        // GAME OVER → スコア → リトライ案内 の順に表示する。
+        // 撮影モードは段階表示を飛ばし、出揃った最終状態を撮る
+        if (shotMode) {
+            title.setTranslateY(0);
+            title.setOpacity(1.0);
+            statsBox.setOpacity(1.0);
+            hints.setOpacity(1.0);
+        } else {
+            title.setTranslateY(-60);
+            title.setOpacity(0);
+            TranslateTransition titleSlide = new TranslateTransition(Duration.millis(450), title);
+            titleSlide.setToY(0);
+            FadeTransition titleFade = new FadeTransition(Duration.millis(450), title);
+            titleFade.setToValue(1.0);
+            new ParallelTransition(titleSlide, titleFade).play();
 
-        statsBox.setOpacity(0);
-        FadeTransition statsFade = new FadeTransition(Duration.millis(400), statsBox);
-        statsFade.setToValue(1.0);
-        statsFade.setDelay(Duration.millis(300));
-        statsFade.play();
+            statsBox.setOpacity(0);
+            FadeTransition statsFade = new FadeTransition(Duration.millis(400), statsBox);
+            statsFade.setToValue(1.0);
+            statsFade.setDelay(Duration.millis(300));
+            statsFade.play();
 
-        hints.setOpacity(0);
-        FadeTransition hintsFade = new FadeTransition(Duration.millis(400), hints);
-        hintsFade.setToValue(1.0);
-        hintsFade.setDelay(Duration.millis(600));
-        hintsFade.play();
+            hints.setOpacity(0);
+            FadeTransition hintsFade = new FadeTransition(Duration.millis(400), hints);
+            hintsFade.setToValue(1.0);
+            hintsFade.setDelay(Duration.millis(600));
+            hintsFade.play();
+        }
 
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
         scene.setOnKeyPressed(e -> {
@@ -567,7 +634,7 @@ public class Main extends Application {
     // =====================================================
     //  エンドクレジット画面
     // =====================================================
-    private Scene makeEndCreditScene(String creditJson, Runnable onComplete) {
+    Scene makeEndCreditScene(String creditJson, Runnable onComplete) {
         stopLoopingAnimations();
         EndCreditPane creditPane = new EndCreditPane(creditJson, ImageAssets.END_CREDIT_BG);
         Scene scene = new Scene(creditPane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -584,7 +651,12 @@ public class Main extends Application {
         };
 
         timeline.setOnFinished(e -> completeAction.run());
-        timeline.play();
+        if (shotMode) {
+            // 撮影モードは流さない。流し始めの位置は画面外なので、全体が収まる位置で止める
+            creditPane.centerForStill();
+        } else {
+            timeline.play();
+        }
 
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ESCAPE || e.getCode() == KeyCode.SPACE) {

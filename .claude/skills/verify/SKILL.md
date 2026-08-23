@@ -5,6 +5,26 @@ description: 9pazzle(JavaFXゲーム)をビルド・起動・キー操作して�
 
 # 9pazzle 検証レシピ
 
+## UI を見るだけなら shot.bat
+
+画面ごとの PNG を一括で撮る。ビルド → 全画面を巡回 → `docs\shots\` へ書き出し →
+フォルダを開く、までを 1 コマンドでやる（実測 40 枚 / 約 19 秒）。
+
+```powershell
+& "$env:SystemRoot\System32\cmd.exe" /c "H:\9pazzle\shot.bat < nul"
+```
+
+- `-nobuild` で既存の app.jar のまま撮る / `-keep` で `docs\shots-<日時>\` にも控えを残す
+- 内訳は START / CONFIG + ゲーム画面 配置8×フロア4 + ポーズ + セリフ3種 +
+  GAME OVER / エンドクレジット = 40 枚
+- 撮影対象を足したいときは `src\tetris\ShotRunner.java`
+- 外部キャプチャと違ってウィンドウを前面に固定する必要も座標合わせも無い。
+  フェードや点滅は `Main.shotMode` が止めるので、同じリビジョンなら毎回同じ絵になる
+- ゲームオーバー画面のハイスコア行だけは保存済みの実データを映すので、
+  プレイして記録が伸びるとその1行は変わる
+
+**入力の効きや演出の途中を見たいとき**は shot.bat では撮れない。以下の手順で手動確認する。
+
 ## ビルド
 PowerShell から(bat 末尾の pause は stdin を nul にして回避):
 
@@ -49,12 +69,16 @@ stderr のリダイレクトで JavaFX 例外を捕捉できる(正常時は 0 �
 
 ## 確認ポイント
 
-- 起動直後 = NEXT CLUSTER 配置 + 1F ARCADE フロア
+- 起動直後 = ROUGH A (逆さ) 配置 + 1F ARCADE フロア
+  (`UiLayoutBank.DEFAULT_LAYOUT_INDEX` が指す配置。増減したらここも直すこと)
 - F2×4 で 4 フロア一巡(1F ARCADE → 5F MARKET → 9F CLINIC → RF ROOFTOP。
   HUD 見出し右端のフロア名タグとパネルの色味で判別。パネル背景への焼き込みは
   プレイフィールドのみ)
-- F3×6 で配置一巡(CLASSIC / SOUTHPAW / CENTER STAGE / NEXT CLUSTER / COCKPIT / THEATER)
-- U×24 で配置6×フロア4 の全組合せが一巡
+- F3×8 で配置一巡(CLASSIC / SOUTHPAW / CENTER STAGE / NEXT CLUSTER / COCKPIT /
+  THEATER / ROUGH A / ROUGH B)
+- U×32 で配置8×フロア4 の全組合せが一巡
+- ROUGH A / B は OVERLAY 様式。HudPane が見出し帯・区切り罫・**セリフ枠**を落とすので、
+  セリフの見た目を確かめたいときはパネル様式の配置(CLASSIC など)へ切り替えること
 
 ### ウィンドウ操作の注意
 

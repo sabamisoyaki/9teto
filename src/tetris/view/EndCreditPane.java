@@ -65,6 +65,17 @@ public class EndCreditPane {
         return root;
     }
 
+    /**
+     * スクロールを止めて、クレジット全体が画面に収まる位置へ置く。
+     * 撮影モードで静止画を 1 枚だけ撮るとき用。buildScrollAnimation() の直後に呼ぶこと
+     * （あちらが流し始めの位置＝画面外の下端へ飛ばすので、そのままだと何も写らない）。
+     */
+    public void centerForStill() {
+        creditsBox.applyCss();
+        creditsBox.layout();
+        creditsBox.setTranslateY(Math.max(0, (HEIGHT - creditsBox.prefHeight(-1)) / 2));
+    }
+
     public Timeline buildScrollAnimation() {
         // レイアウト計算を強制してから高さを取得する
         creditsBox.applyCss();
