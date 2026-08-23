@@ -66,6 +66,9 @@ xcopy "%FX_BIN%\*.dll"  "package-input\"              /Y /Q >nul
 if exist "images" xcopy "images" "package-input\images\" /E /I /Y /Q >nul
 if exist "audio"  xcopy "audio"  "package-input\audio\"  /E /I /Y /Q >nul
 
+rem images\archive holds unreferenced art kept for reference only. Do not ship it.
+if exist "package-input\images\archive" rmdir /s /q "package-input\images\archive"
+
 rem ---- Step 4: jpackage ----
 echo [4/5] Running jpackage...
 if exist "dist" rmdir /s /q "dist"
@@ -91,10 +94,16 @@ rem ---- Step 5: Cleanup ----
 echo [5/5] Cleaning up...
 rmdir /s /q "package-input"
 
+rem ---- Step 6: Zip ----
+echo [6/6] Creating zip archive...
+if exist "dist\Tetris.zip" del /f /q "dist\Tetris.zip"
+powershell -NoProfile -Command "Compress-Archive -Path 'dist\Tetris' -DestinationPath 'dist\Tetris.zip'"
+if errorlevel 1 ( echo [ERROR] Zip creation failed. & pause & goto :eof )
+
 echo.
 echo ==========================================
 echo  DONE!
 echo  Executable : dist\Tetris\Tetris.exe
-echo  Share the entire  dist\Tetris\  folder.
+echo  Zip        : dist\Tetris.zip
 echo ==========================================
 pause

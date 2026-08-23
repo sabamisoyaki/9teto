@@ -1,5 +1,8 @@
 package tetris.model;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import javafx.scene.paint.Color;
 
 public class Board {
@@ -9,6 +12,9 @@ public class Board {
 
     private Color[][] board = new Color[ROWS][COLS];
     private int totalClearedLines = 0;
+
+    private final List<Integer> lastClearedRows = new ArrayList<>();
+    private final List<Color[]> lastClearedColors = new ArrayList<>();
 
     public Board() {}
 
@@ -58,23 +64,35 @@ public class Board {
 
 
     // --- 固定 ---
-    public void fixToBoard(Tetromino t) {
+    /**
+     * ミノを盤面に固定する。
+     *
+     * @return 1マスでも盤面内に固定できたら true。
+     *         false（全ブロックが盤面外＝ロックアウト）の扱いは呼び出し側が決める。
+     */
+    public boolean fixToBoard(Tetromino t) {
+        boolean anyFixed = false;
         for (int r = 0; r < 4; r++) {
             for (int c = 0; c < 4; c++) {
                 if (t.getShape()[r][c] == 1) {
                     int br = t.getRow() + r;
                     int bc = t.getCol() + c;
+                    if (br < 0 || br >= ROWS || bc < 0 || bc >= COLS) continue;
                     board[br][bc] = t.getColor();
+                    anyFixed = true;
                 }
             }
         }
+        return anyFixed;
     }
 
     /** 固定ブロック全体を90°回転させる（右回転） */
     public void rotateClockwise() {
-
+        // 純粋な90°CW回転（正方形盤面前提）。
+        // 以前は「右端列＝元row0は常に空」とみなして全体を1列右シフトしていたが、
+        // 積みが天井に達した状態（まさに仮ゲームオーバー時）では row0 にもブロックが
+        // 存在し、シフトで切り捨てられて消失するバグがあったため廃止した。
         Color[][] rotated = new Color[ROWS][COLS];
-
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
                 if (board[r][c] != null) {
@@ -82,19 +100,7 @@ public class Board {
                 }
             }
         }
-
-        // CW回転後、右端の列(col=24)は元のrow0（スポーン行＝常に空）に対応するため必ず空になる。
-        // 全体を1列右シフトして空き列を左端に移すことで右端の隙間をなくす。
-        // col24（元row0の内容＝常に0）は切り捨てられるがデータ損失はない。
-        board = new Color[ROWS][COLS];
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 1; c < COLS; c++) {
-                board[r][c] = rotated[r][c - 1];
-            }
-            // board[r][0] = null（デフォルト初期化済み）
-        }
-
-        System.out.println("==== WORLD ROTATED ====");
+        board = rotated;
     }
 
     // --- ライン消去 ---
@@ -117,9 +123,13 @@ public class Board {
     }
 
     public int clearCompletedLines() {
+        lastClearedRows.clear();
+        lastClearedColors.clear();
         int count = 0;
         for (int r = ROWS - 1; r >= 0; r--) {
             if (isLineFull(r)) {
+                lastClearedRows.add(r);
+                lastClearedColors.add(Arrays.copyOf(board[r], COLS));
                 clearLine(r);
                 count++;
                 r++;
@@ -127,6 +137,18 @@ public class Board {
         }
         totalClearedLines += count;
         return count;
+    }
+
+    public void pollLastClearedLines(List<Integer> outRows, List<Color[]> outColors) {
+        outRows.addAll(lastClearedRows);
+        outColors.addAll(lastClearedColors);
+        lastClearedRows.clear();
+        lastClearedColors.clear();
+    }
+
+    public boolean isBlocked(int row, int col) {
+        if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return true;
+        return board[row][col] != null;
     }
 
     public boolean canPlace(int[][] shape, int row, int col) {

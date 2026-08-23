@@ -1,6 +1,5 @@
 package tetris.view;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,12 +12,6 @@ import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
-import javafx.scene.image.Image;
-import javafx.scene.layout.Background;
-import javafx.scene.layout.BackgroundImage;
-import javafx.scene.layout.BackgroundPosition;
-import javafx.scene.layout.BackgroundRepeat;
-import javafx.scene.layout.BackgroundSize;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -39,10 +32,10 @@ public class EndCreditPane {
     public EndCreditPane(String creditJson, Path backgroundImagePath) {
         root = new StackPane();
         root.setPrefSize(WIDTH, HEIGHT);
-        loadBackgroundImage(backgroundImagePath);
+        ImageAssets.addBackdropView(root, backgroundImagePath, WIDTH, HEIGHT, Backdrop.CREDIT);
 
         Rectangle overlay = new Rectangle(WIDTH, HEIGHT);
-        overlay.setFill(javafx.scene.paint.Color.rgb(0, 0, 0, 0.6));
+        overlay.setFill(KowloonPalette.alpha(KowloonPalette.SHADOW, 0.6));
         root.getChildren().add(overlay);
 
         creditsBox = new VBox(18);
@@ -72,6 +65,17 @@ public class EndCreditPane {
         return root;
     }
 
+    /**
+     * スクロールを止めて、クレジット全体が画面に収まる位置へ置く。
+     * 撮影モードで静止画を 1 枚だけ撮るとき用。buildScrollAnimation() の直後に呼ぶこと
+     * （あちらが流し始めの位置＝画面外の下端へ飛ばすので、そのままだと何も写らない）。
+     */
+    public void centerForStill() {
+        creditsBox.applyCss();
+        creditsBox.layout();
+        creditsBox.setTranslateY(Math.max(0, (HEIGHT - creditsBox.prefHeight(-1)) / 2));
+    }
+
     public Timeline buildScrollAnimation() {
         // レイアウト計算を強制してから高さを取得する
         creditsBox.applyCss();
@@ -89,23 +93,6 @@ public class EndCreditPane {
                         new KeyValue(creditsBox.translateYProperty(), startY, Interpolator.LINEAR)),
                 new KeyFrame(duration,
                         new KeyValue(creditsBox.translateYProperty(), endY, Interpolator.LINEAR)));
-    }
-
-    private void loadBackgroundImage(Path imagePath) {
-        if (imagePath == null || !Files.exists(imagePath)) {
-            root.setStyle("-fx-background-color: black;");
-            return;
-        }
-
-        Image image = new Image(imagePath.toUri().toString());
-        BackgroundSize size = new BackgroundSize(WIDTH, HEIGHT, false, false, false, false);
-        BackgroundImage backgroundImage = new BackgroundImage(
-                image,
-                BackgroundRepeat.NO_REPEAT,
-                BackgroundRepeat.NO_REPEAT,
-                BackgroundPosition.CENTER,
-                size);
-        root.setBackground(new Background(backgroundImage));
     }
 
     private List<String> parseCreditLines(String json) {

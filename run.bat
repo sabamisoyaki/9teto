@@ -39,9 +39,13 @@ if not exist "%FX%" (
     goto :eof
 )
 
+if not exist "%~dp0log" mkdir "%~dp0log"
+
 "%JAVA%" --module-path "%FX%" ^
        --enable-native-access=javafx.graphics,javafx.media ^
        --add-modules javafx.controls,javafx.graphics,javafx.fxml,javafx.media ^
+       "-XX:ErrorFile=%~dp0log\hs_err_pid%%p.log" ^
+       "-XX:ReplayDataFile=%~dp0log\replay_pid%%p.log" ^
        -jar app.jar
 
 if errorlevel 1 (

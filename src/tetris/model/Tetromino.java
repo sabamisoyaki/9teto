@@ -16,7 +16,7 @@ public class Tetromino {
         this.shape = type.getShape();
         this.color = type.getColor();
         this.row = 0;
-        this.col = 3;
+        this.col = (Board.COLS - 4) / 2; // 4×4ボックスを盤面中央に置く（盤面幅変更にも追従）
         this.rotation = 0;
     }
 

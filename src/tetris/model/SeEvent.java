@@ -5,5 +5,11 @@ public enum SeEvent {
     ROTATE,
     HARD_DROP,
     LOCK,
-    LINE_CLEAR
+    LINE_CLEAR,
+    WORLD_ROTATE,
+    HOLD,
+    T_SPIN,
+    T_SPIN_MINI,
+    REN,
+    TEMP_GAME_OVER
 }
