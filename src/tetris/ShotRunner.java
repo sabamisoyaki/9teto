@@ -10,7 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.zip.CRC32;
 import java.util.zip.Deflater;
 
@@ -23,6 +22,8 @@ import javafx.scene.image.WritableImage;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import tetris.model.Board;
+import tetris.model.Rng;
+import tetris.model.SeededRng;
 import tetris.model.ShapeType;
 import tetris.model.Tetromino;
 import tetris.view.HudPane;
@@ -277,7 +278,7 @@ final class ShotRunner {
      * シードが同じなら毎回同じ絵になるので UI 改修の差分比較に使える。
      */
     private static void paintDummyStack(Board board) {
-        Random rnd = new Random(BOARD_SEED);
+        Rng rnd = new SeededRng(BOARD_SEED);
         ShapeType[] palette = ShapeType.values();
         for (int c = 0; c < Board.COLS; c++) {
             int height = 7 + (int) Math.round(3 * Math.sin(c * 0.7)) + rnd.nextInt(3);

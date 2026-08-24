@@ -37,6 +37,7 @@ public final class ImageAssets {
     //   images/skin/     … GenerateSkinImages の出力
     //   images/mock/     … BuildRoughMocks の出力
     //   images/character/… 差し替え用の立ち絵
+    //   images/new/      … 描いた絵の原本（白地）。RemoveWhiteBackground の入力
     //   images/archive/  … 未参照。配布には含めない
     public static final Path BASE_LAYER           = skinImg("bg-kowloon-base-layer.png");
     public static final Path END_CREDIT_BG        = img("end-credit-bg.png");

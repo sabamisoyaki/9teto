@@ -2,7 +2,8 @@ package tetris.view;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
+
+import tetris.model.Rng;
 
 /**
  * トリガーごとのセリフデータ。文面の差し替えはこのファイルだけで完結させる。
@@ -40,8 +41,12 @@ public final class DialogueBank {
             "次のミノはこれよ。下にも表示してるけど。")
     );
 
-    private final Random rand = new Random();
+    private final Rng rng;
     private String last = "";
+
+    public DialogueBank(Rng rng) {
+        this.rng = rng;
+    }
 
     /** トリガーに対応する台詞をランダムに1つ返す。直前と同じ台詞は選ばない */
     public String pick(DialogueTrigger trigger) {
@@ -50,7 +55,7 @@ public final class DialogueBank {
         if (candidates.size() == 1) return candidates.get(0);
         String s;
         do {
-            s = candidates.get(rand.nextInt(candidates.size()));
+            s = rng.pick(candidates);
         } while (s.equals(last));
         last = s;
         return s;

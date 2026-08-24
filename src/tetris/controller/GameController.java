@@ -1,19 +1,19 @@
 package tetris.controller;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Queue;
 import java.util.Set;
 
 import javafx.scene.input.KeyCode;
 import javafx.scene.paint.Color;
 
 import tetris.model.Board;
+import tetris.model.PieceRandomizer;
+import tetris.model.RngHub;
 import tetris.model.SeEvent;
+import tetris.model.SevenBagRandomizer;
 import tetris.model.ShapeType;
 import tetris.model.Tetromino;
 
@@ -24,7 +24,7 @@ public class GameController {
     private Tetromino next;
     private Tetromino hold;
     private boolean canHold = true;
-    private final Queue<ShapeType> bag = new ArrayDeque<>();
+    private final PieceRandomizer randomizer;
 
     // ワールド回転（重力反転ギミック）の閾値
     private static final int LINE_ROTATE_INTERVAL = 3;
@@ -161,24 +161,20 @@ public class GameController {
     //                 コンストラクタ
     // ==================================================
 
+    /** 既存の呼び出し互換。7-bag ＋ 毎回変わるシード */
     public GameController() {
+        this(new SevenBagRandomizer(RngHub.fromSystemProperty().stream("piece")));
+    }
+
+    public GameController(PieceRandomizer randomizer) {
+        this.randomizer = randomizer;
         board = new Board();
-        generateBag();
         current = getNextTetromino();
         next = getNextTetromino();
     }
 
-    private void generateBag() {
-        List<ShapeType> list = new ArrayList<>(Arrays.asList(ShapeType.values()));
-        Collections.shuffle(list);
-        bag.addAll(list);
-    }
-
     private Tetromino getNextTetromino() {
-        if (bag.isEmpty()) {
-            generateBag();
-        }
-        return new Tetromino(bag.poll());
+        return new Tetromino(randomizer.next());
     }
 
     public Board getBoard()        { return board; }

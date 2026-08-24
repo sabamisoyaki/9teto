@@ -15,6 +15,8 @@ images/
   skin/        tools/GenerateSkinImages.java の出力（22点）
   mock/        tools/BuildRoughMocks.java の出力（2点）
   character/   差し替え用の立ち絵（4点）。ツールは書き込まない
+  new/         描いた絵の原本（白地のまま）。tools/RemoveWhiteBackground.java の入力。
+               アプリからは読まない
   archive/     未参照。配布からは除外される（package.bat が消す）
 ```
 
