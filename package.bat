@@ -1,6 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
-set "PATH=%SystemRoot%\System32;%PATH%"
+rem powershell.exe は System32 直下ではなく System32\WindowsPowerShell\v1.0\ にある。
+rem System32 だけ通しても見つからないので、両方を先頭へ足す
+set "PATH=%SystemRoot%\System32;%SystemRoot%\System32\WindowsPowerShell\v1.0;%PATH%"
 cd /d "%~dp0"
 
 echo ========================================
@@ -97,8 +99,18 @@ rmdir /s /q "package-input"
 rem ---- Step 6: Zip ----
 echo [6/6] Creating zip archive...
 if exist "dist\Tetris.zip" del /f /q "dist\Tetris.zip"
-powershell -NoProfile -Command "Compress-Archive -Path 'dist\Tetris' -DestinationPath 'dist\Tetris.zip'"
-if errorlevel 1 ( echo [ERROR] Zip creation failed. & pause & goto :eof )
+
+rem PATH に頼らず絶対パスで叩く。PATH の中身は環境によって削られていることがある
+set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if exist "%PS%" (
+    "%PS%" -NoProfile -Command "try { Compress-Archive -Path 'dist\Tetris' -DestinationPath 'dist\Tetris.zip' -ErrorAction Stop } catch { exit 1 }"
+) else (
+    rem PowerShell が無い環境の逃げ道。tar は Windows 10 1803 以降に同梱されている
+    tar -c -f "dist\Tetris.zip" --format=zip -C dist Tetris
+)
+
+rem 終了コードだけだと取りこぼすことがあるので、実物ができたかで判定する
+if not exist "dist\Tetris.zip" ( echo [ERROR] Zip creation failed. & pause & goto :eof )
 
 echo.
 echo ==========================================
