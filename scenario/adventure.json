@@ -1,0 +1,77 @@
+{
+  "parts": {
+    "opening": {
+      "routes": [
+        {
+          "id": "op-first",
+          "minScore": 0,
+          "title": "9F ・ 開院",
+          "background": "bg-kowloon-start.png",
+          "pages": [
+            { "text": "九龍。増築だけで育った街の、九階。" },
+            { "text": "エレベーターは八階までしか止まらない。ここから先は、階段。" },
+            { "speaker": "麻酔科医", "character": "9F-CLINIC",
+              "text": "……来たわね。診察券は？　ああ、いらないの。ここはそういう場所じゃない。" },
+            { "speaker": "麻酔科医",
+              "text": "積みなさい。詰まったら、世界の方が回るから。" }
+          ]
+        },
+        {
+          "id": "op-veteran",
+          "minScore": 100000,
+          "title": "9F ・ 再診",
+          "background": "bg-kowloon-start.png",
+          "pages": [
+            { "speaker": "麻酔科医", "character": "9F-CLINIC",
+              "text": "またあなた。……もう説明はいらないでしょう。" },
+            { "speaker": "麻酔科医",
+              "text": "灯りは点けておいたわ。好きなだけ積んでいきなさい。" }
+          ]
+        }
+      ]
+    },
+    "ending": {
+      "routes": [
+        {
+          "id": "ed-lights-out",
+          "minScore": 0,
+          "title": "9F ・ 消灯",
+          "pages": [
+            { "text": "蛍光灯が一本、音を立てて落ちた。" },
+            { "speaker": "麻酔科医", "character": "9F-CLINIC",
+              "text": "……今日はここまでね。" },
+            { "speaker": "麻酔科医",
+              "text": "また来なさい。灯りは点けておくから。" }
+          ]
+        },
+        {
+          "id": "ed-night-wind",
+          "minScore": 30000,
+          "title": "RF ・ 夜風",
+          "background": "bg-kowloon-base-layer.png",
+          "pages": [
+            { "text": "屋上へ出ると、風が鉄錆の匂いを運んできた。" },
+            { "speaker": "麻酔科医", "character": "RF-ROOFTOP",
+              "text": "ここまで上がってきたの。……珍しいわね。" },
+            { "speaker": "麻酔科医",
+              "text": "下は見ないほうがいいわよ。まだ積んである。" }
+          ]
+        },
+        {
+          "id": "ed-open-sky",
+          "minScore": 100000,
+          "title": "RF ・ 天蓋",
+          "background": "bg-kowloon-base-layer.png",
+          "pages": [
+            { "text": "積み上がった街が、はじめて下に見えた。" },
+            { "speaker": "麻酔科医", "character": "RF-ROOFTOP",
+              "text": "……全部、消したのね。" },
+            { "speaker": "麻酔科医",
+              "text": "回る世界も、そろそろ目を回す頃だわ。お疲れさま。" },
+            { "character": "", "text": "夜が明けるまで、あと少しあった。" }
+          ]
+        }
+      ]
+    }
+  }
+}
