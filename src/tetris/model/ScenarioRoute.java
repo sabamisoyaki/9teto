@@ -8,8 +8,9 @@ import tetris.Json;
 /**
  * アドベンチャーパートの 1 ルート。
  *
- * @param id        保存データの鍵（どのエンディングを踏んだか）。<b>公開後は変えない</b>。
- *                  変えると既読が外れて、見たはずのエンディングが未到達に戻る
+ * @param id        保存データの鍵（どのエンディングを踏んだか）。空白とカンマは使用不可。
+ *                  <b>公開後は変えない</b>。変えると既読が外れて、見たはずの
+ *                  エンディングが未到達に戻る
  * @param minScore  このルートが選ばれる下限。{@link Scenario#routeFor} を参照
  * @param title     回想モードの一覧に出す名前。未到達では伏せるのでネタバレを含めない
  * @param background ルート全体の既定背景。ページ側で上書きできる
@@ -19,6 +20,7 @@ public record ScenarioRoute(
         String id, int minScore, String title, String background, List<ScenarioPage> pages) {
 
     public ScenarioRoute {
+        validateId(id);
         pages = List.copyOf(pages);
     }
 
@@ -27,12 +29,24 @@ public record ScenarioRoute(
         for (Object p : Json.list(json, "pages")) {
             pages.add(ScenarioPage.from(p));
         }
+        String id = Json.str(json, "id", null);
         return new ScenarioRoute(
-                Json.str(json, "id", ""),
+                id,
                 Json.num(json, "minScore", 0),
                 Json.str(json, "title", ""),
                 Json.str(json, "background", null),
                 pages);
+    }
+
+    /** CSV で保存でき、見た目では判別しづらい空白を含まない永続化キーだけを許す。 */
+    private static void validateId(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("シナリオルートの id が空");
+        }
+        if (id.indexOf(',') >= 0 || id.chars().anyMatch(Character::isWhitespace)) {
+            throw new IllegalArgumentException(
+                    "シナリオルートの id にカンマまたは空白は使えない: " + id);
+        }
     }
 
     /**

@@ -75,6 +75,8 @@ public class Main extends Application {
     private SePlayer menuSePlayer;
     private Timeline bgmFade; // 実行中のフェードアウト。再生再開時に止めて二重制御を防ぐ
     private final GameConfig config = new GameConfig();
+    /** シーンをまたいだ OS のキーリピートを、最初の KEY_RELEASED まで遮断する。 */
+    private final Set<KeyCode> heldInputKeys = new HashSet<>();
 
     /**
      * 撮影モード（-Dshot.out 指定時）。演出を再生せず最終状態で描くことで、
@@ -112,6 +114,10 @@ public class Main extends Application {
         this.primaryStage = stage;
         stage.setTitle("TETRIS");
         stage.setResizable(false);
+        // フォーカスを失うと KEY_RELEASED が届かないことがあるため、押下状態を捨てる。
+        stage.focusedProperty().addListener((obs, wasFocused, focused) -> {
+            if (!focused) heldInputKeys.clear();
+        });
         config.load();
 
         // 撮影モード: 各画面を順に組んで PNG へ落としたら終了する（shot.bat から使う）。
@@ -193,6 +199,30 @@ public class Main extends Application {
     // シーンに紐づく無限ループのアニメーション。シーンを作り直しても JavaFX の
     // プライマリタイマーから強参照され続けて GC されないため、明示的に stop する。
     private final List<Animation> loopingAnimations = new ArrayList<>();
+
+    /**
+     * 1 回の物理押下につきハンドラを 1 回だけ呼ぶ。
+     * 押しっぱなしでシーンが切り替わっても、解放までは次シーンへ入力を渡さない。
+     */
+    private void setDebouncedKeyHandler(Scene scene, Consumer<KeyCode> handler) {
+        scene.setOnKeyPressed(e -> {
+            KeyCode code = e.getCode();
+            if (acceptKeyPress(code)) {
+                handler.accept(code);
+            }
+        });
+        scene.setOnKeyReleased(e -> heldInputKeys.remove(e.getCode()));
+    }
+
+    private boolean acceptKeyPress(KeyCode code) {
+        boolean firstPress = heldInputKeys.add(code);
+        // カーソル移動は長押しリピートを残す。画面遷移・送り・ポーズに使うキーだけ、
+        // 解放まで再入力を遮断する。
+        return firstPress || switch (code) {
+            case SPACE, ENTER, ESCAPE, RIGHT, C, R, T, P -> false;
+            default -> true;
+        };
+    }
 
     /** 無限ループのアニメーションを登録して再生する（シーン切替時に一括停止される） */
     private void playLooping(Animation anim) {
@@ -318,15 +348,15 @@ public class Main extends Application {
 
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        scene.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.SPACE) {
+        setDebouncedKeyHandler(scene, code -> {
+            if (code == KeyCode.SPACE) {
                 // 自己ベストを渡して「初見か・やり込んでいるか」で掴みを変える。
                 // showGameScene() 側には入れない（リトライやポーズ R でも出てしまう）
                 showAdventureScene(Scenario.OPENING, config.getHighScore(),
                         this::showGameScene);
-            } else if (e.getCode() == KeyCode.C) {
+            } else if (code == KeyCode.C) {
                 showConfigScene();
-            } else if (e.getCode() == KeyCode.R) {
+            } else if (code == KeyCode.R) {
                 showRecollectionScene();
             }
         });
@@ -353,8 +383,8 @@ public class Main extends Application {
         );
 
         Scene scene = new Scene(pane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
-        scene.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.ESCAPE) {
+        setDebouncedKeyHandler(scene, code -> {
+            if (code == KeyCode.ESCAPE) {
                 config.save();
                 showStartScene();
             }
@@ -471,10 +501,16 @@ public class Main extends Application {
                 sePlayer,
                 // アドベンチャーパート → エンドクレジット → ゲームオーバー画面 の順。
                 // 話を見せてからスタッフロールへ流す
-                (finalScore, finalLines) -> transitionOut(() -> showAdventureScene(
-                        Scenario.ENDING, finalScore,
-                        () -> showEndCreditScene(DEFAULT_END_CREDIT_JSON,
-                                () -> showGameOverScene(finalScore, finalLines)))),
+                (finalScore, finalLines) -> {
+                    // 読み物の途中で終了されても今回の記録を失わないよう、
+                    // ゲームオーバーが確定した時点で先に保存する。
+                    config.updateHighScore(finalScore);
+                    config.save();
+                    transitionOut(() -> showAdventureScene(
+                            Scenario.ENDING, finalScore,
+                            () -> showEndCreditScene(DEFAULT_END_CREDIT_JSON,
+                                    () -> showGameOverScene(finalScore, finalLines))));
+                },
                 () -> pauseOverlay.setVisible(true),
                 () -> pauseOverlay.setVisible(false),
                 showCountdown,
@@ -482,9 +518,13 @@ public class Main extends Application {
 
         Scene scene = new Scene(gameRoot, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        scene.setOnKeyReleased(e -> keys.remove(e.getCode()));
+        scene.setOnKeyReleased(e -> {
+            keys.remove(e.getCode());
+            heldInputKeys.remove(e.getCode());
+        });
         scene.setOnKeyPressed(e -> {
             KeyCode code = e.getCode();
+            if (!acceptKeyPress(code)) return;
             if (code == KeyCode.ESCAPE || code == KeyCode.P) {
                 timer.togglePause();
             } else if (code == KeyCode.U) {
@@ -647,10 +687,10 @@ public class Main extends Application {
         }
 
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
-        scene.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.SPACE) {
+        setDebouncedKeyHandler(scene, code -> {
+            if (code == KeyCode.SPACE) {
                 showGameScene();
-            } else if (e.getCode() == KeyCode.T) {
+            } else if (code == KeyCode.T) {
                 showStartScene();
             }
         });
@@ -659,9 +699,6 @@ public class Main extends Application {
     }
 
     private void showGameOverScene(int score, int lines) {
-        config.updateHighScore(score);
-        config.save();
-
         fadeOutBgm(1.2, null);
 
         transitionOut(() -> fadeInScene(makeGameOverScene(score, lines)));
@@ -695,8 +732,8 @@ public class Main extends Application {
             timeline.play();
         }
 
-        scene.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.ESCAPE || e.getCode() == KeyCode.SPACE) {
+        setDebouncedKeyHandler(scene, code -> {
+            if (code == KeyCode.ESCAPE || code == KeyCode.SPACE) {
                 timeline.stop();
                 completeAction.run();
             }
@@ -763,8 +800,7 @@ public class Main extends Application {
 
         pane.advance(); // 1 ページ目
 
-        scene.setOnKeyPressed(e -> {
-            KeyCode code = e.getCode();
+        setDebouncedKeyHandler(scene, code -> {
             if (code == KeyCode.ESCAPE) {
                 complete.run();
             } else if (code == KeyCode.SPACE || code == KeyCode.ENTER
@@ -795,8 +831,8 @@ public class Main extends Application {
         RecollectionPane pane = new RecollectionPane(routes, unlocked);
         Scene scene = new Scene(pane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
 
-        scene.setOnKeyPressed(e -> {
-            switch (e.getCode()) {
+        setDebouncedKeyHandler(scene, code -> {
+            switch (code) {
                 case ESCAPE -> showStartScene();
                 case UP     -> pane.moveCursor(-1);
                 case DOWN   -> pane.moveCursor(1);

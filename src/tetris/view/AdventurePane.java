@@ -175,8 +175,13 @@ public class AdventurePane {
 
     private static Path backgroundPath(String name) {
         if (name == null || name.isBlank()) return ImageAssets.BASE_LAYER;
-        Path p = ResourcePath.of("images", "skin", name);
-        return java.nio.file.Files.exists(p) ? p : ImageAssets.BASE_LAYER;
+        Path skin = ResourcePath.of("images", "skin", name);
+        if (java.nio.file.Files.exists(skin)) return skin;
+
+        // START_BG など画面専用の背景は images/ 直下に置く既存契約なので、
+        // skin/ に無い場合はこちらも探す。どちらにも無ければ従来どおり共通背景へ戻す。
+        Path shared = ResourcePath.of("images", name);
+        return java.nio.file.Files.exists(shared) ? shared : ImageAssets.BASE_LAYER;
     }
 
     private static void fadeIn(Node node) {

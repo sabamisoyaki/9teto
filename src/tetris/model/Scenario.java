@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import tetris.Json;
 import tetris.ResourcePath;
@@ -54,8 +56,14 @@ public final class Scenario {
             Map<String, List<ScenarioRoute>> parts = new LinkedHashMap<>();
             Json.map(root, "parts").forEach((name, part) -> {
                 List<ScenarioRoute> routes = new ArrayList<>();
+                Set<String> ids = new HashSet<>();
                 for (Object r : Json.list(part, "routes")) {
-                    routes.add(ScenarioRoute.from(r));
+                    ScenarioRoute route = ScenarioRoute.from(r);
+                    if (!ids.add(route.id())) {
+                        throw new IllegalArgumentException(
+                                "パート " + name + " のルート id が重複している: " + route.id());
+                    }
+                    routes.add(route);
                 }
                 parts.put(name, List.copyOf(routes));
             });

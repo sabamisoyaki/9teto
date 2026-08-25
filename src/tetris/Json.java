@@ -55,9 +55,20 @@ public final class Json {
         return (v instanceof String s) ? s : def;
     }
 
+    /** 無い・数値でないなら既定値。小数・範囲外なら設定ミスとして例外にする。 */
     public static int num(Object o, String key, int def) {
         Object v = get(o, key);
-        return (v instanceof Number n) ? n.intValue() : def;
+        if (!(v instanceof Number n)) return def;
+
+        double value = n.doubleValue();
+        if (!Double.isFinite(value)
+                || value != Math.rint(value)
+                || value < Integer.MIN_VALUE
+                || value > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    key + " は32ビット整数でなければならない: " + n);
+        }
+        return (int) value;
     }
 
     /** 配列を取る。無い・配列でないなら空リスト */
@@ -171,19 +182,49 @@ public final class Json {
     private Double number() {
         int start = pos;
         if (peek() == '-') pos++;
-        while (pos < src.length() && isNumberChar(src.charAt(pos))) pos++;
+
+        // JSON の整数部は 0 単独、または 0 以外から始まる数字列。
+        // Double.valueOf に丸投げすると .5 / +1 / 01 / 1. まで通ってしまう。
+        if (peek() == '0') {
+            pos++;
+            if (isDigit(peek())) throw error("数値の先頭に余分な 0 がある");
+        } else if (isOneToNine(peek())) {
+            do { pos++; } while (isDigit(peek()));
+        } else {
+            throw error("数値として読めない");
+        }
+
+        if (peek() == '.') {
+            pos++;
+            if (!isDigit(peek())) throw error("小数点の後に数字が要る");
+            do { pos++; } while (isDigit(peek()));
+        }
+
+        if (peek() == 'e' || peek() == 'E') {
+            pos++;
+            if (peek() == '+' || peek() == '-') pos++;
+            if (!isDigit(peek())) throw error("指数部に数字が要る");
+            do { pos++; } while (isDigit(peek()));
+        }
+
         String text = src.substring(start, pos);
-        if (text.isEmpty()) throw error("数値として読めない");
         try {
-            return Double.valueOf(text);
+            Double value = Double.valueOf(text);
+            if (!Double.isFinite(value)) {
+                throw error("数値が大きすぎる: " + text);
+            }
+            return value;
         } catch (NumberFormatException e) {
             throw error("数値として読めない: " + text);
         }
     }
 
-    private static boolean isNumberChar(char c) {
-        return (c >= '0' && c <= '9') || c == '.' || c == 'e' || c == 'E'
-                || c == '+' || c == '-';
+    private static boolean isDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
+    private static boolean isOneToNine(char c) {
+        return c >= '1' && c <= '9';
     }
 
     private Object literal(String word, Object result) {
