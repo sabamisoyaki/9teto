@@ -58,6 +58,7 @@ import tetris.view.KowloonPalette;
 import tetris.view.MenuStyle;
 import tetris.view.NextPane;
 import tetris.view.Particle;
+import tetris.view.RecollectionPane;
 import tetris.view.Render;
 import tetris.view.UiSkin;
 import tetris.view.UiSkinBank;
@@ -305,7 +306,7 @@ public class Main extends Application {
         fade.setAutoReverse(true);
         playLooping(fade);
 
-        Label configHint = new Label("C  Config");
+        Label configHint = new Label("C  Config        R  Recollection");
         configHint.setStyle(MenuStyle.hint());
 
         int hs = config.getHighScore();
@@ -325,6 +326,8 @@ public class Main extends Application {
                         this::showGameScene);
             } else if (e.getCode() == KeyCode.C) {
                 showConfigScene();
+            } else if (e.getCode() == KeyCode.R) {
+                showRecollectionScene();
             }
         });
 
@@ -724,6 +727,11 @@ public class Main extends Application {
             onComplete.run();
             return;
         }
+        // 「踏んだ」のはルートに入った時点。読み終わりで記録すると、
+        // スキップした人が回想に追加できず「飛ばしたら二度と読めない」になる
+        if (Scenario.ENDING.equals(part)) {
+            config.markEndingSeen(route.id());
+        }
         playAdventureRoute(route, onComplete);
     }
 
@@ -768,6 +776,44 @@ public class Main extends Application {
         });
 
         return scene;
+    }
+
+    // =====================================================
+    //  回想モード
+    // =====================================================
+
+    Scene makeRecollectionScene() {
+        stopLoopingAnimations();
+        List<ScenarioRoute> routes = Scenario.load().routesOf(Scenario.ENDING);
+        List<Boolean> unlocked = new ArrayList<>();
+        for (ScenarioRoute r : routes) {
+            unlocked.add(config.hasSeenEnding(r.id()));
+        }
+
+        RecollectionPane pane = new RecollectionPane(routes, unlocked);
+        Scene scene = new Scene(pane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        scene.setOnKeyPressed(e -> {
+            switch (e.getCode()) {
+                case ESCAPE -> showStartScene();
+                case UP     -> pane.moveCursor(-1);
+                case DOWN   -> pane.moveCursor(1);
+                case SPACE, ENTER -> {
+                    ScenarioRoute route = pane.selected();
+                    if (route != null && !route.isEmpty()) {
+                        // 読み終わりもスキップも一覧へ戻す。ゲームオーバー画面へは行かない
+                        playAdventureRoute(route, this::showRecollectionScene);
+                    }
+                }
+                default -> { }
+            }
+        });
+
+        return scene;
+    }
+
+    private void showRecollectionScene() {
+        fadeInScene(makeRecollectionScene());
     }
 
     /** メニュー系の効果音。ゲーム画面の SePlayer とは別に、必要になったとき1つだけ作る */

@@ -168,6 +168,9 @@ final class ShotRunner {
         // どう出るかを配置の変更ごとに見比べられるようにしておく
         addAdventureShots(Scenario.OPENING, "08-adv-op");
         addAdventureShots(Scenario.ENDING,  "09-adv-ed");
+
+        // 回想モードは既読の状態で見た目が変わる。撮れるのは今の保存データの状態
+        add("10-recollection", () -> stage.setScene(app.makeRecollectionScene()));
     }
 
     /** そのパートの全ルートを 1 枚ずつ。シナリオが無ければ 1 枚も足さない */
