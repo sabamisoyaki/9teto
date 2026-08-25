@@ -469,9 +469,11 @@ public class Main extends Application {
                 hudPane,
                 keys,
                 sePlayer,
-                (finalScore, finalLines) -> transitionOut(() -> showEndCreditScene(
-                        DEFAULT_END_CREDIT_JSON,
-                        () -> showAdventureScene(Scenario.ENDING, finalScore,
+                // アドベンチャーパート → エンドクレジット → ゲームオーバー画面 の順。
+                // 話を見せてからスタッフロールへ流す
+                (finalScore, finalLines) -> transitionOut(() -> showAdventureScene(
+                        Scenario.ENDING, finalScore,
+                        () -> showEndCreditScene(DEFAULT_END_CREDIT_JSON,
                                 () -> showGameOverScene(finalScore, finalLines)))),
                 () -> pauseOverlay.setVisible(true),
                 () -> pauseOverlay.setVisible(false),
