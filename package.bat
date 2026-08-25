@@ -68,6 +68,9 @@ xcopy "%FX_BIN%\*.dll"  "package-input\"              /Y /Q >nul
 if exist "images" xcopy "images" "package-input\images\" /E /I /Y /Q >nul
 if exist "audio"  xcopy "audio"  "package-input\audio\"  /E /I /Y /Q >nul
 
+rem Adventure part scenario. Without this the packaged build silently skips the parts.
+if exist "scenario" xcopy "scenario" "package-input\scenario\" /E /I /Y /Q >nul
+
 rem images\archive holds unreferenced art kept for reference only. Do not ship it.
 if exist "package-input\images\archive" rmdir /s /q "package-input\images\archive"
 

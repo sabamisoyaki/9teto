@@ -24,6 +24,8 @@ import javafx.util.Duration;
 import tetris.model.Board;
 import tetris.model.Rng;
 import tetris.model.SeededRng;
+import tetris.model.Scenario;
+import tetris.model.ScenarioRoute;
 import tetris.model.ShapeType;
 import tetris.model.Tetromino;
 import tetris.view.HudPane;
@@ -160,6 +162,22 @@ final class ShotRunner {
         add("06-gameover",  () -> stage.setScene(app.makeGameOverScene(DUMMY_SCORE, DUMMY_LINES)));
         add("07-endcredit", () -> stage.setScene(
                 app.makeEndCreditScene(Main.DEFAULT_END_CREDIT_JSON, null)));
+
+        // アドベンチャーパートは本編フローだと撮影モードで飛ばされる（Main.showAdventureScene）。
+        // 画面を直接組んで、各ルートの 1 ページ目を撮る。立ち絵と本文の枠が
+        // どう出るかを配置の変更ごとに見比べられるようにしておく
+        addAdventureShots(Scenario.OPENING, "08-adv-op");
+        addAdventureShots(Scenario.ENDING,  "09-adv-ed");
+    }
+
+    /** そのパートの全ルートを 1 枚ずつ。シナリオが無ければ 1 枚も足さない */
+    private void addAdventureShots(String part, String prefix) {
+        List<ScenarioRoute> routes = Scenario.load().routesOf(part);
+        for (int i = 0; i < routes.size(); i++) {
+            ScenarioRoute route = routes.get(i);
+            String name = String.format("%s%d-%s", prefix, i + 1, slug(route.id()));
+            add(name, () -> stage.setScene(app.makeAdventureScene(route, () -> { })));
+        }
     }
 
     private void add(String name, Runnable prepare) {

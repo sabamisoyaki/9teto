@@ -40,8 +40,11 @@ import tetris.model.Board;
 import tetris.model.GameConfig;
 import tetris.model.Rng;
 import tetris.model.RngHub;
+import tetris.model.Scenario;
+import tetris.model.ScenarioRoute;
 import tetris.model.SeEvent;
 import tetris.model.SevenBagRandomizer;
+import tetris.view.AdventurePane;
 import tetris.view.Backdrop;
 import tetris.view.DialogueBank;
 import tetris.view.DialogueTrigger;
@@ -67,6 +70,8 @@ public class Main extends Application {
     private static final Path BGM_PATH = ResourcePath.of("audio", "bgm.wav");
     private static final double BGM_MAX_VOLUME = 0.35;
     private MediaPlayer bgmPlayer;
+    /** メニュー系の効果音。ゲーム画面のものとは別に、初めて要るときだけ作る */
+    private SePlayer menuSePlayer;
     private Timeline bgmFade; // 実行中のフェードアウト。再生再開時に止めて二重制御を防ぐ
     private final GameConfig config = new GameConfig();
 
@@ -314,7 +319,10 @@ public class Main extends Application {
 
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.SPACE) {
-                showGameScene();
+                // 自己ベストを渡して「初見か・やり込んでいるか」で掴みを変える。
+                // showGameScene() 側には入れない（リトライやポーズ R でも出てしまう）
+                showAdventureScene(Scenario.OPENING, config.getHighScore(),
+                        this::showGameScene);
             } else if (e.getCode() == KeyCode.C) {
                 showConfigScene();
             }
@@ -460,7 +468,8 @@ public class Main extends Application {
                 sePlayer,
                 (finalScore, finalLines) -> transitionOut(() -> showEndCreditScene(
                         DEFAULT_END_CREDIT_JSON,
-                        () -> showGameOverScene(finalScore, finalLines))),
+                        () -> showAdventureScene(Scenario.ENDING, finalScore,
+                                () -> showGameOverScene(finalScore, finalLines)))),
                 () -> pauseOverlay.setVisible(true),
                 () -> pauseOverlay.setVisible(false),
                 showCountdown,
@@ -693,6 +702,80 @@ public class Main extends Application {
 
     private void showEndCreditScene(String creditJson, Runnable onComplete) {
         fadeInScene(makeEndCreditScene(creditJson, onComplete));
+    }
+
+    // =====================================================
+    //  アドベンチャーパート
+    // =====================================================
+
+    /**
+     * アドベンチャーパートを挟んでから onComplete へ進む。
+     *
+     * <p>シナリオが無い・ルートが無い・撮影モードのときは<b>黙って素通り</b>する。
+     * アセットが無ければ静かにフォールバックする既存方針（ASSETS.md）に合わせ、
+     * シナリオが未整備でもゲームは通しで遊べる。
+     *
+     * @param part  {@link Scenario#OPENING} か {@link Scenario#ENDING}
+     * @param score ルート選択に使う点数。OP は自己ベスト、ED は今回の得点
+     */
+    private void showAdventureScene(String part, int score, Runnable onComplete) {
+        ScenarioRoute route = Scenario.load().routeFor(part, score);
+        if (shotMode || route == null || route.isEmpty()) {
+            onComplete.run();
+            return;
+        }
+        playAdventureRoute(route, onComplete);
+    }
+
+    /**
+     * ルートを直接再生する。回想モードは既読のものをここから開く
+     * （{@link #showAdventureScene} と違い minScore の判定を通さない）。
+     */
+    private void playAdventureRoute(ScenarioRoute route, Runnable onComplete) {
+        // OP は無音のまま始まってしまうのでここで鳴らす。ED は既に鳴っているので
+        // 何も起きない（playBgm は再生中なら触らない）
+        playBgm();
+        fadeInScene(makeAdventureScene(route, onComplete));
+    }
+
+    Scene makeAdventureScene(ScenarioRoute route, Runnable onComplete) {
+        stopLoopingAnimations();
+        AdventurePane pane = new AdventurePane(route);
+        Scene scene = new Scene(pane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
+
+        // 送り切りとスキップで二重に進まないよう1回だけ通す（クレジットと同じ作り）
+        boolean[] completed = {false};
+        Runnable complete = () -> {
+            if (completed[0]) return;
+            completed[0] = true;
+            onComplete.run();
+        };
+
+        pane.advance(); // 1 ページ目
+
+        scene.setOnKeyPressed(e -> {
+            KeyCode code = e.getCode();
+            if (code == KeyCode.ESCAPE) {
+                complete.run();
+            } else if (code == KeyCode.SPACE || code == KeyCode.ENTER
+                    || code == KeyCode.RIGHT) {
+                if (pane.advance()) {
+                    menuSe().play(SeEvent.MOVE);
+                } else {
+                    complete.run();
+                }
+            }
+        });
+
+        return scene;
+    }
+
+    /** メニュー系の効果音。ゲーム画面の SePlayer とは別に、必要になったとき1つだけ作る */
+    private SePlayer menuSe() {
+        if (menuSePlayer == null) {
+            menuSePlayer = new SePlayer(config);
+        }
+        return menuSePlayer;
     }
 
 
