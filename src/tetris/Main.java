@@ -77,6 +77,8 @@ public class Main extends Application {
     private final GameConfig config = new GameConfig();
     /** シーンをまたいだ OS のキーリピートを、最初の KEY_RELEASED まで遮断する。 */
     private final Set<KeyCode> heldInputKeys = new HashSet<>();
+    /** ゲーム中に物理的に押されている操作キー。フォーカス喪失時にも必ず解除する。 */
+    private final Set<KeyCode> gameInputKeys = new HashSet<>();
 
     /**
      * 撮影モード（-Dshot.out 指定時）。演出を再生せず最終状態で描くことで、
@@ -116,7 +118,10 @@ public class Main extends Application {
         stage.setResizable(false);
         // フォーカスを失うと KEY_RELEASED が届かないことがあるため、押下状態を捨てる。
         stage.focusedProperty().addListener((obs, wasFocused, focused) -> {
-            if (!focused) heldInputKeys.clear();
+            if (!focused) {
+                heldInputKeys.clear();
+                gameInputKeys.clear();
+            }
         });
         config.load();
 
@@ -466,7 +471,9 @@ public class Main extends Application {
         HudPane hudPane = view.getHudPane();
         hudPane.setBestScore(config.getHighScore());
 
-        Set<KeyCode> keys = new HashSet<>();
+        // 前のゲームで KEY_RELEASED を受け取れなかった場合も、新しいゲームへ持ち越さない。
+        gameInputKeys.clear();
+        Set<KeyCode> keys = gameInputKeys;
         // 初回描画
         renderer.drawAll(
                 view.getPlayFieldPane().getPlayfieldCanvas().getGraphicsContext2D(),

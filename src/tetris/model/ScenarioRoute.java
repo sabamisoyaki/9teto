@@ -29,7 +29,7 @@ public record ScenarioRoute(
         for (Object p : Json.list(json, "pages")) {
             pages.add(ScenarioPage.from(p));
         }
-        String id = Json.str(json, "id", null);
+        String id = Json.requiredStr(json, "id");
         return new ScenarioRoute(
                 id,
                 Json.num(json, "minScore", 0),

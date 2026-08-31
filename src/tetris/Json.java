@@ -11,7 +11,7 @@ import java.util.Map;
  * <p>読めるのはオブジェクト / 配列 / 文字列 / 数値 / true / false / null だけ。
  * 返す型は {@code Map<String,Object>} / {@code List<Object>} / String / Double /
  * Boolean / null。取り出しは {@link #str} {@link #num} {@link #list} {@link #map}
- * を通すと、型違いや欠けを既定値で吸収できる。
+ * を通すと、欠けは既定値で吸収しつつ、型違いは設定ミスとして検出できる。
  *
  * <p>{@code EndCreditPane} も JSON を読んでいるがあちらは正規表現で、
  * 「heading と lines の繰り返し」という平たい構造専用。入れ子があるデータは
@@ -20,6 +20,8 @@ import java.util.Map;
  * <p>オブジェクトは {@link LinkedHashMap} で作るので、書いた順が保たれる。
  */
 public final class Json {
+
+    private static final Object MISSING = new Object();
 
     private final String src;
     private int pos;
@@ -47,18 +49,28 @@ public final class Json {
     }
 
     // ==================================================
-    //   取り出しヘルパ。欠けても落とさず既定値を返す
+    //   取り出しヘルパ。欠けは既定値、型違いは例外
     // ==================================================
 
     public static String str(Object o, String key, String def) {
-        Object v = get(o, key);
-        return (v instanceof String s) ? s : def;
+        Object v = optional(o, key);
+        if (v == MISSING || v == null) return def;
+        if (v instanceof String s) return s;
+        throw typeError(key, "文字列", v);
     }
 
-    /** 無い・数値でないなら既定値。小数・範囲外なら設定ミスとして例外にする。 */
+    /** 必須の文字列を取る。欠落・null・型違いはいずれも設定ミス。 */
+    public static String requiredStr(Object o, String key) {
+        Object v = required(o, key);
+        if (v instanceof String s) return s;
+        throw typeError(key, "文字列", v);
+    }
+
+    /** 無いなら既定値。型違い・小数・範囲外なら設定ミスとして例外にする。 */
     public static int num(Object o, String key, int def) {
-        Object v = get(o, key);
-        if (!(v instanceof Number n)) return def;
+        Object v = optional(o, key);
+        if (v == MISSING) return def;
+        if (!(v instanceof Number n)) throw typeError(key, "数値", v);
 
         double value = n.doubleValue();
         if (!Double.isFinite(value)
@@ -71,24 +83,65 @@ public final class Json {
         return (int) value;
     }
 
-    /** 配列を取る。無い・配列でないなら空リスト */
+    /** 配列を取る。無いなら空リスト、型違いなら設定ミス。 */
     public static List<Object> list(Object o, String key) {
-        Object v = get(o, key);
-        if (!(v instanceof List<?> l)) return List.of();
+        Object v = optional(o, key);
+        if (v == MISSING) return List.of();
+        if (!(v instanceof List<?> l)) throw typeError(key, "配列", v);
         return new ArrayList<>(l);
     }
 
-    /** オブジェクトを取る。無い・オブジェクトでないなら空マップ */
+    /** 必須の配列を取る。欠落・null・型違いはいずれも設定ミス。 */
+    public static List<Object> requiredList(Object o, String key) {
+        Object v = required(o, key);
+        if (!(v instanceof List<?> l)) throw typeError(key, "配列", v);
+        return new ArrayList<>(l);
+    }
+
+    /** オブジェクトを取る。無いなら空マップ、型違いなら設定ミス。 */
     public static Map<String, Object> map(Object o, String key) {
-        Object v = get(o, key);
-        if (!(v instanceof Map<?, ?> m)) return Map.of();
+        Object v = optional(o, key);
+        if (v == MISSING) return Map.of();
+        if (!(v instanceof Map<?, ?> m)) throw typeError(key, "オブジェクト", v);
+        return copyMap(m);
+    }
+
+    /** 必須のオブジェクトを取る。欠落・null・型違いはいずれも設定ミス。 */
+    public static Map<String, Object> requiredMap(Object o, String key) {
+        Object v = required(o, key);
+        if (!(v instanceof Map<?, ?> m)) throw typeError(key, "オブジェクト", v);
+        return copyMap(m);
+    }
+
+    private static Map<String, Object> copyMap(Map<?, ?> m) {
         Map<String, Object> out = new LinkedHashMap<>();
         m.forEach((k, val) -> out.put(String.valueOf(k), val));
         return out;
     }
 
-    private static Object get(Object o, String key) {
-        return (o instanceof Map<?, ?> m) ? m.get(key) : null;
+    private static Object optional(Object o, String key) {
+        if (!(o instanceof Map<?, ?> m)) {
+            throw new IllegalArgumentException(
+                    key + " を含む値はオブジェクトでなければならない");
+        }
+        return m.containsKey(key) ? m.get(key) : MISSING;
+    }
+
+    private static Object required(Object o, String key) {
+        Object v = optional(o, key);
+        if (v == MISSING) {
+            throw new IllegalArgumentException("必須項目が無い: " + key);
+        }
+        return v;
+    }
+
+    private static IllegalArgumentException typeError(
+            String key, String expected, Object actual) {
+        String actualType = actual == null
+                ? "null"
+                : actual.getClass().getSimpleName();
+        return new IllegalArgumentException(
+                key + " は" + expected + "でなければならない: " + actualType);
     }
 
     // ==================================================

@@ -17,7 +17,7 @@ public record ScenarioPage(String speaker, String character, String text, String
         return new ScenarioPage(
                 Json.str(json, "speaker", ""),
                 Json.str(json, "character", null),   // 省略と "" を区別する
-                Json.str(json, "text", ""),
+                Json.requiredStr(json, "text"),
                 Json.str(json, "background", null));
     }
 
