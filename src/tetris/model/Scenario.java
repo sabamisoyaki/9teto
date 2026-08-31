@@ -29,10 +29,12 @@ public final class Scenario {
     public static final String ENDING  = "ending";
 
     /**
-     * 幕間。フロアを 1 周（ワールド回転 4 回）するたびに 1 本ずつ、
-     * <b>JSON に書いた順</b>で流す。スコアでは選ばない。
+     * チュートリアル。ゲームを始める前に<b>全ルートを JSON の順に通しで</b>流す。
+     * スコアでは選ばない（該当ルートを 1 本選ぶ OP / ED とはそこが違う）。
+     *
+     * <p>初回は必ず通り、以降はタイトルの T からいつでも読み返せる。
      */
-    public static final String INTERLUDE = "interlude";
+    public static final String TUTORIAL = "tutorial";
 
     private static final Path FILE = ResourcePath.of("scenario", "adventure.json");
 
@@ -82,9 +84,9 @@ public final class Scenario {
                     throw new IllegalArgumentException(
                             "パート " + name + " のルート id が重複している: " + route.id());
                 }
-                // 幕間は進行順に引くので minScore を見ない。重複しても曖昧にならない。
-                // スコアで選ぶパートだけ、どちらが選ばれるか並び順に依存しないよう弾く
-                if (!INTERLUDE.equals(name) && !minScores.add(route.minScore())) {
+                // チュートリアルは全ルートを通しで流すので minScore を見ない。
+                // スコアで 1 本選ぶパートだけ、どちらが選ばれるか並び順に依存しないよう弾く
+                if (!TUTORIAL.equals(name) && !minScores.add(route.minScore())) {
                     throw new IllegalArgumentException(
                             "パート " + name + " の minScore が重複している: "
                             + route.minScore());
@@ -114,16 +116,6 @@ public final class Scenario {
             if (best == null || r.minScore() > best.minScore()) best = r;
         }
         return best;
-    }
-
-    /**
-     * 幕間の n 本目。進行順に 1 本ずつ消費する。
-     *
-     * @return 用意した本数を超えたら null（以降は幕間を挟まない）
-     */
-    public ScenarioRoute interludeAt(int index) {
-        List<ScenarioRoute> routes = routesOf(INTERLUDE);
-        return (index < 0 || index >= routes.size()) ? null : routes.get(index);
     }
 
     /** id でルートを引く。回想モードが記録済みのものを直接開くのに使う */

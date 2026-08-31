@@ -30,7 +30,7 @@
         }
       ]
     },
-    "interlude": {
+    "tutorial": {
       "routes": [
         {
           "id": "tut-rotate",

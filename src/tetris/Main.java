@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.IntPredicate;
 
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
@@ -342,7 +341,7 @@ public class Main extends Application {
         fade.setAutoReverse(true);
         playLooping(fade);
 
-        Label configHint = new Label("C  Config        R  Recollection");
+        Label configHint = new Label("C  Config     T  Tutorial     R  Recollection");
         configHint.setStyle(MenuStyle.hint());
 
         int hs = config.getHighScore();
@@ -356,14 +355,18 @@ public class Main extends Application {
 
         setDebouncedKeyHandler(scene, code -> {
             if (code == KeyCode.SPACE) {
+                // タイトル → OP → チュートリアル（初回のみ）→ ゲーム。
                 // 自己ベストを渡して「初見か・やり込んでいるか」で掴みを変える。
                 // showGameScene() 側には入れない（リトライやポーズ R でも出てしまう）
                 showAdventureScene(Scenario.OPENING, config.getHighScore(),
-                        this::showGameScene);
+                        () -> playTutorial(false, this::showGameScene));
             } else if (code == KeyCode.C) {
                 showConfigScene();
             } else if (code == KeyCode.R) {
                 showRecollectionScene();
+            } else if (code == KeyCode.T) {
+                // 読み返しに来ているので、既読でも必ず通す（force = true）
+                playTutorial(true, this::showStartScene);
             }
         });
 
@@ -497,10 +500,6 @@ public class Main extends Application {
             st.play();
         };
 
-        // 幕間ハンドラはタイマー自身を止め直す必要があるが、そのタイマーを
-        // 組み立てている最中なので参照が取れない。1要素の箱で後入れする
-        GameLoopTimer[] timerRef = new GameLoopTimer[1];
-
         GameLoopTimer timer = new GameLoopTimer(
                 rngHub,
                 controller,
@@ -523,12 +522,10 @@ public class Main extends Application {
                             () -> showEndCreditScene(DEFAULT_END_CREDIT_JSON,
                                     () -> showGameOverScene(finalScore, finalLines))));
                 },
-                interludeIndex -> playInterlude(interludeIndex, timerRef),
                 () -> pauseOverlay.setVisible(true),
                 () -> pauseOverlay.setVisible(false),
                 showCountdown,
                 () -> countdownLabel.setVisible(false));
-        timerRef[0] = timer;
 
         Scene scene = new Scene(gameRoot, WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -842,24 +839,38 @@ public class Main extends Application {
      *
      * <p>タイマーは呼ばれた時点で既にポーズ済み。戻すのはこちらの責任。
      */
-    private boolean playInterlude(int index, GameLoopTimer[] timerRef) {
-        ScenarioRoute route = Scenario.load().interludeAt(index);
-        // チュートリアルなので一度見たら二度と出さない。2 周目以降のプレイヤーに
-        // 同じ説明を読ませると、進行を止められるだけの邪魔になる。
-        // ここで false を返すとゲームは止まらないので、カウントダウンも挟まらない
-        if (shotMode || route == null || route.isEmpty()
-                || config.hasSeenInterlude(route.id())) {
-            return false;
+    /**
+     * チュートリアルを頭から通して、終わったら onComplete へ進む。
+     *
+     * <p>ルートは JSON の並び順に連続で流す（1 本ずつ切らない）。
+     * ページを送り切ると次のルートへ入り、最後まで行くと抜ける。
+     *
+     * @param force タイトルから開いたときは true。既読でも必ず通す。
+     *              初回の自動再生では false を渡し、既読なら黙って飛ばす
+     */
+    private void playTutorial(boolean force, Runnable onComplete) {
+        List<ScenarioRoute> routes = Scenario.load().routesOf(Scenario.TUTORIAL);
+        if (shotMode || routes.isEmpty() || (!force && config.hasSeenTutorial())) {
+            onComplete.run();
+            return;
         }
-        // 飛ばされても記録は残す（エンディングと同じ扱い）
-        config.markInterludeSeen(route.id());
-        timerRef[0].pauseForInterlude();
-        Scene gameScene = primaryStage.getScene();
-        playAdventureRoute(route, () -> {
-            fadeInScene(gameScene);
-            timerRef[0].resumeFromInterlude();
-        });
-        return true;
+        // 飛ばされても「通した」ことにする。でないと ESC を押した人に毎回出る
+        config.markTutorialSeen();
+        playRoutesInSequence(routes, 0, onComplete);
+    }
+
+    /** ルート列を先頭から順に再生する。1 本終わるたびに次を開く */
+    private void playRoutesInSequence(List<ScenarioRoute> routes, int index, Runnable onComplete) {
+        if (index >= routes.size()) {
+            onComplete.run();
+            return;
+        }
+        ScenarioRoute route = routes.get(index);
+        if (route.isEmpty()) {
+            playRoutesInSequence(routes, index + 1, onComplete);
+            return;
+        }
+        playAdventureRoute(route, () -> playRoutesInSequence(routes, index + 1, onComplete));
     }
 
     // =====================================================
@@ -925,12 +936,6 @@ final class GameLoopTimer extends AnimationTimer {
     private final Set<KeyCode> keys;
     private final SePlayer sePlayer;
     private final BiConsumer<Integer, Integer> gameOverHandler;
-    /**
-     * 幕間を挟む合図。引数は何本目か（0 始まり）。
-     * Main が実際に画面を出したら true。false なら何も起きていないので進行を続ける。
-     */
-    private final IntPredicate interludeHandler;
-
     // ポーズ状態
     private boolean isPaused = false;
     private boolean countingDown = false;
@@ -955,11 +960,6 @@ final class GameLoopTimer extends AnimationTimer {
     private long freezeStartNanos = 0;
     private long freezeUntilNanos = 0;
 
-    /**
-     * 挟むのを待っている幕間の番号。-1 は無し。
-     * 回転演出のフリーズが解けてから消費する（演出の途中で画面を奪わない）。
-     */
-    private int pendingInterludeLoop = -1;
     // F2 デバッグ用: スキンだけを先送りして見た目を確認できる
     private int debugSkinShift = 0;
 
@@ -992,7 +992,6 @@ final class GameLoopTimer extends AnimationTimer {
             Set<KeyCode> keys,
             SePlayer sePlayer,
             BiConsumer<Integer, Integer> gameOverHandler,
-            IntPredicate interludeHandler,
             Runnable showPauseOverlay,
             Runnable hidePauseOverlay,
             Consumer<Integer> showCountdown,
@@ -1009,7 +1008,6 @@ final class GameLoopTimer extends AnimationTimer {
         this.keys = keys;
         this.sePlayer = sePlayer;
         this.gameOverHandler = gameOverHandler;
-        this.interludeHandler = interludeHandler;
         this.showPauseOverlay = showPauseOverlay;
         this.hidePauseOverlay = hidePauseOverlay;
         this.showCountdown = showCountdown;
@@ -1040,23 +1038,6 @@ final class GameLoopTimer extends AnimationTimer {
             hidePauseOverlay.run();
             startCountdown();
         }
-    }
-
-    /**
-     * 幕間を出すと決まったので進行を止める。
-     * <b>出すと決まってから呼ぶこと。</b>先に止めると、既読で何も出さない場合にも
-     * 復帰のカウントダウンが挟まってしまう。
-     */
-    public void pauseForInterlude() {
-        if (!isPaused) togglePause();
-    }
-
-    /**
-     * 幕間から戻ってゲームを再開する。ポーズ解除と同じ経路なので、
-     * カウントダウンと「止まっていた時間ぶんのタイマー補正」がそのまま効く。
-     */
-    public void resumeFromInterlude() {
-        if (isPaused) togglePause();
     }
 
     private void startCountdown() {
@@ -1121,17 +1102,6 @@ final class GameLoopTimer extends AnimationTimer {
             shiftDialogueTimers(frozenNanos);
             lastFall = now;
 
-            // 幕間は回転演出を見せ切ってから。回転と同時に画面を差し替えると
-            // 「積みが 90°回った」ことが伝わらないまま話が始まる
-            if (pendingInterludeLoop >= 0) {
-                int loopIndex = pendingInterludeLoop;
-                pendingInterludeLoop = -1;
-                // 出すと決まったときだけ止める。先に止めてしまうと、既読で
-                // 何も出さない場合にもカウントダウンが挟まって進行が途切れる
-                if (interludeHandler.test(loopIndex)) {
-                    return;
-                }
-            }
         }
 
         if (!spokeGameStart) {
@@ -1324,11 +1294,6 @@ final class GameLoopTimer extends AnimationTimer {
         view.applySkin(skin);
         view.getPlayFieldPane().triggerShake();
         proposeDialogue(DialogueTrigger.WORLD_ROTATE, 80, true);
-
-        // 幕間はチュートリアル。世界が回るという仕組みそのものを説明するので、
-        // 回転が起きた「そのとき」に出す。何周も待たせる意味がない。
-        // 既読なら Main 側が黙って素通りするので、2 周目以降は何も起きない
-        pendingInterludeLoop = controller.getWorldRotateCount() - 1;
 
         effectFrozen = true;
         freezeStartNanos = now;
