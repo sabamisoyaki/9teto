@@ -30,6 +30,38 @@
         }
       ]
     },
+    "interlude": {
+      "routes": [
+        {
+          "id": "il-1",
+          "title": "1周目",
+          "pages": [
+            { "text": "世界が一周した。天井だったものが、床になっている。" },
+            { "speaker": "麻酔科医", "character": "9F-CLINIC",
+              "text": "慣れた？　……無理して慣れなくてもいいのよ。" }
+          ]
+        },
+        {
+          "id": "il-2",
+          "title": "2周目",
+          "background": "bg-kowloon-base-layer.png",
+          "pages": [
+            { "speaker": "麻酔科医", "character": "5F-MARKET",
+              "text": "この階、昔は市場だったの。今は誰も降りてこないけど。" },
+            { "text": "積み上がったものの下から、古い看板が覗いていた。" }
+          ]
+        },
+        {
+          "id": "il-3",
+          "title": "3周目",
+          "background": "bg-kowloon-base-layer.png",
+          "pages": [
+            { "speaker": "麻酔科医", "character": "RF-ROOFTOP",
+              "text": "……上まで来たわね。ここから先は、風が強いわよ。" }
+          ]
+        }
+      ]
+    },
     "ending": {
       "routes": [
         {

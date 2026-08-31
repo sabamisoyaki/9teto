@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
@@ -496,6 +497,10 @@ public class Main extends Application {
             st.play();
         };
 
+        // 幕間ハンドラはタイマー自身を止め直す必要があるが、そのタイマーを
+        // 組み立てている最中なので参照が取れない。1要素の箱で後入れする
+        GameLoopTimer[] timerRef = new GameLoopTimer[1];
+
         GameLoopTimer timer = new GameLoopTimer(
                 rngHub,
                 controller,
@@ -518,10 +523,12 @@ public class Main extends Application {
                             () -> showEndCreditScene(DEFAULT_END_CREDIT_JSON,
                                     () -> showGameOverScene(finalScore, finalLines))));
                 },
+                interludeIndex -> playInterlude(interludeIndex, timerRef),
                 () -> pauseOverlay.setVisible(true),
                 () -> pauseOverlay.setVisible(false),
                 showCountdown,
                 () -> countdownLabel.setVisible(false));
+        timerRef[0] = timer;
 
         Scene scene = new Scene(gameRoot, WINDOW_WIDTH, WINDOW_HEIGHT);
 
@@ -551,6 +558,12 @@ public class Main extends Application {
                 String name = view.cycleLayout();
                 view.getPlayFieldPane().spawnScorePopup(
                         "LAYOUT: " + name, javafx.scene.paint.Color.LIGHTSKYBLUE);
+            } else if (code == KeyCode.F4) {
+                // デバッグ: ワールド回転を1回起こす。幕間は回転4回ごとなので、
+                // これが無いと 12 ライン消さないと幕間の確認ができない
+                controller.rotateWorldClockwise();
+                view.getPlayFieldPane().spawnScorePopup(
+                        "WORLD ROTATE", javafx.scene.paint.Color.LIGHTSKYBLUE);
             } else if (timer.isGamePaused()) {
                 if (code == KeyCode.SPACE) {
                     timer.togglePause();
@@ -823,6 +836,25 @@ public class Main extends Application {
         return scene;
     }
 
+    /**
+     * 幕間を挟む。ゲームのシーンは作り直さず、読み終わったら同じものへ戻す
+     * （盤面も積みもそのまま。作り直すとプレイが失われる）。
+     *
+     * <p>タイマーは呼ばれた時点で既にポーズ済み。戻すのはこちらの責任。
+     */
+    private void playInterlude(int index, GameLoopTimer[] timerRef) {
+        ScenarioRoute route = Scenario.load().interludeAt(index);
+        if (shotMode || route == null || route.isEmpty()) {
+            timerRef[0].resumeFromInterlude();
+            return;
+        }
+        Scene gameScene = primaryStage.getScene();
+        playAdventureRoute(route, () -> {
+            fadeInScene(gameScene);
+            timerRef[0].resumeFromInterlude();
+        });
+    }
+
     // =====================================================
     //  回想モード
     // =====================================================
@@ -886,6 +918,8 @@ final class GameLoopTimer extends AnimationTimer {
     private final Set<KeyCode> keys;
     private final SePlayer sePlayer;
     private final BiConsumer<Integer, Integer> gameOverHandler;
+    /** 幕間を挟む合図。引数は何本目か（0 始まり）。Main がシーンを差し替える */
+    private final IntConsumer interludeHandler;
 
     // ポーズ状態
     private boolean isPaused = false;
@@ -910,6 +944,12 @@ final class GameLoopTimer extends AnimationTimer {
     private boolean effectFrozen = false;
     private long freezeStartNanos = 0;
     private long freezeUntilNanos = 0;
+
+    /**
+     * 挟むのを待っている幕間の番号。-1 は無し。
+     * 回転演出のフリーズが解けてから消費する（演出の途中で画面を奪わない）。
+     */
+    private int pendingInterludeLoop = -1;
     // F2 デバッグ用: スキンだけを先送りして見た目を確認できる
     private int debugSkinShift = 0;
 
@@ -942,6 +982,7 @@ final class GameLoopTimer extends AnimationTimer {
             Set<KeyCode> keys,
             SePlayer sePlayer,
             BiConsumer<Integer, Integer> gameOverHandler,
+            IntConsumer interludeHandler,
             Runnable showPauseOverlay,
             Runnable hidePauseOverlay,
             Consumer<Integer> showCountdown,
@@ -958,6 +999,7 @@ final class GameLoopTimer extends AnimationTimer {
         this.keys = keys;
         this.sePlayer = sePlayer;
         this.gameOverHandler = gameOverHandler;
+        this.interludeHandler = interludeHandler;
         this.showPauseOverlay = showPauseOverlay;
         this.hidePauseOverlay = hidePauseOverlay;
         this.showCountdown = showCountdown;
@@ -988,6 +1030,14 @@ final class GameLoopTimer extends AnimationTimer {
             hidePauseOverlay.run();
             startCountdown();
         }
+    }
+
+    /**
+     * 幕間から戻ってゲームを再開する。ポーズ解除と同じ経路なので、
+     * カウントダウンと「止まっていた時間ぶんのタイマー補正」がそのまま効く。
+     */
+    public void resumeFromInterlude() {
+        if (isPaused) togglePause();
     }
 
     private void startCountdown() {
@@ -1051,6 +1101,18 @@ final class GameLoopTimer extends AnimationTimer {
             controller.shiftTimersAfterPause(frozenNanos);
             shiftDialogueTimers(frozenNanos);
             lastFall = now;
+
+            // 幕間は回転演出を見せ切ってから。回転と同時に画面を差し替えると
+            // 「積みが 90°回った」ことが伝わらないまま話が始まる
+            if (pendingInterludeLoop >= 0) {
+                int loopIndex = pendingInterludeLoop;
+                pendingInterludeLoop = -1;
+                // ポーズ機構に乗せる。復帰時のカウントダウンとタイマー補正が
+                // そのまま効くので、長い幕間のあとでも即落下しない
+                if (!isPaused) togglePause();
+                interludeHandler.accept(loopIndex);
+                return;
+            }
         }
 
         if (!spokeGameStart) {
@@ -1243,6 +1305,12 @@ final class GameLoopTimer extends AnimationTimer {
         view.applySkin(skin);
         view.getPlayFieldPane().triggerShake();
         proposeDialogue(DialogueTrigger.WORLD_ROTATE, 80, true);
+
+        // フロアを 1 周（回転 4 回）したら幕間を予約する。回転ごとに挟むと
+        // 3 ライン消すたびに読み物が入って進行が途切れる
+        if (controller.getWorldRotateStep() == 0) {
+            pendingInterludeLoop = controller.getWorldRotateLoopCount() - 1;
+        }
 
         effectFrozen = true;
         freezeStartNanos = now;

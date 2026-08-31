@@ -166,6 +166,7 @@ final class ShotRunner {
         // アドベンチャーパートは本編フローだと撮影モードで飛ばされる（Main.showAdventureScene）。
         // 画面を直接組んで、各ルートの 1 ページ目を撮る。立ち絵と本文の枠が
         // どう出るかを配置の変更ごとに見比べられるようにしておく
+        addAdventureShots(Scenario.INTERLUDE, "08-adv-il");
         addAdventureShots(Scenario.OPENING, "08-adv-op");
         addAdventureShots(Scenario.ENDING,  "09-adv-ed");
 
