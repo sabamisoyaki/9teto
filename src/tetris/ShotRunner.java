@@ -124,6 +124,7 @@ final class ShotRunner {
     private void buildShotList() {
         add("01-start",  () -> stage.setScene(app.makeStartScene()));
         add("02-config", () -> stage.setScene(app.makeConfigScene()));
+        add("02b-seed",  () -> stage.setScene(app.makeSeedScene()));
 
         // ゲーム画面は 配置 × フロア の全組合せ。1 枚ずつシーンを作り直すのではなく、
         // 本編で F3 / F2 を押したときと同じ入れ替えを通すことで、実機と同じ絵にする

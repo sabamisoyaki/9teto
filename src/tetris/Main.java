@@ -27,6 +27,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.input.KeyCode;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
@@ -95,6 +96,15 @@ public class Main extends Application {
      */
     private RngHub rngHub;
 
+    /**
+     * プレイヤーが指定したシード。null なら毎回引き直す。
+     *
+     * <p>一度決めるとリトライでも同じ並びが来る（同じ配牌を練習する・人に見せるための機能なので、
+     * リトライで変わっては用を成さない）。解除はシード入力画面を空にして決定する。
+     * {@code -Dgame.seed} を付けて起動した場合はその値が初期値になる。
+     */
+    private Long fixedSeed;
+
     static final String DEFAULT_END_CREDIT_JSON = """
             {
               "title": "THANK YOU FOR PLAYING",
@@ -130,9 +140,23 @@ public class Main extends Application {
         String shotOut = System.getProperty("shot.out");
         if (shotOut != null && !shotOut.isBlank()) {
             shotMode = true;
+            // 撮影は makeGameScene() を通らないので、ここで確定させる。
+            // 固定値なのでゲームオーバー画面の Seed 行も毎回同じ絵になる
+            rngHub = RngHub.of(SHOT_SEED);
             stage.show();
             new ShotRunner(this, stage, Path.of(shotOut.trim())).run();
             return;
+        }
+
+        // -Dgame.seed を付けて起動したら、それを指定シードの初期値にする。
+        // 画面から確認・変更できるようにしておかないと、指定したことに気付けない
+        String seedProp = System.getProperty(RngHub.SEED_PROPERTY);
+        if (seedProp != null && !seedProp.isBlank()) {
+            try {
+                fixedSeed = Long.parseLong(seedProp.trim());
+            } catch (NumberFormatException ignored) {
+                // 数値でない場合は RngHub 側が警告を出すので、ここでは黙って無視する
+            }
         }
 
         initBgmPlayer();
@@ -341,14 +365,20 @@ public class Main extends Application {
         fade.setAutoReverse(true);
         playLooping(fade);
 
-        Label configHint = new Label("C  Config     T  Tutorial     R  Recollection");
+        Label configHint = new Label(
+                "C  Config     T  Tutorial     R  Recollection     S  Seed");
         configHint.setStyle(MenuStyle.hint());
 
         int hs = config.getHighScore();
         Label highScoreLabel = new Label(hs > 0 ? "Best: " + hs : "");
         highScoreLabel.setStyle(MenuStyle.value(22, KowloonPalette.RUST_HEX));
 
-        content.getChildren().addAll(title, sub, configHint, highScoreLabel);
+        // シードを指定しているあいだは、忘れて「なぜ毎回同じ並びなのか」と
+        // 悩まないように常時出しておく
+        Label seedLabel = new Label(fixedSeed == null ? "" : "Seed: " + fixedSeed);
+        seedLabel.setStyle(MenuStyle.value(22, KowloonPalette.LIGHT_HEX));
+
+        content.getChildren().addAll(title, sub, configHint, highScoreLabel, seedLabel);
         root.getChildren().addAll(overlay, content);
 
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -367,6 +397,8 @@ public class Main extends Application {
             } else if (code == KeyCode.T) {
                 // 読み返しに来ているので、既読でも必ず通す（force = true）
                 playTutorial(true, this::showStartScene);
+            } else if (code == KeyCode.S) {
+                showSeedScene();
             }
         });
 
@@ -463,8 +495,8 @@ public class Main extends Application {
         Label countdownLabel = parts.countdownLabel;
         StackPane gameRoot = parts.gameRoot;
 
-        rngHub = shotMode
-                ? RngHub.of(SHOT_SEED)
+        rngHub = shotMode ? RngHub.of(SHOT_SEED)
+                : fixedSeed != null ? RngHub.of(fixedSeed)
                 : RngHub.fromSystemProperty();
         System.out.println("[Rng] seed=" + rngHub.seed());
 
@@ -655,11 +687,20 @@ public class Main extends Application {
 
         statsBox.getChildren().addAll(scoreLabel, linesLabel, highScoreLabel);
 
+        // 「今の並びをもう一度／人に渡す」ための番号。ここでしか手に入らないので必ず出す
+        if (rngHub != null) {
+            Label seedLabel = new Label("Seed:       " + rngHub.seed());
+            seedLabel.setStyle(MenuStyle.value(24, KowloonPalette.LIGHT_HEX));
+            statsBox.getChildren().add(seedLabel);
+        }
+
         VBox hints = new VBox(10);
         hints.setAlignment(Pos.CENTER);
 
         Label retry = new Label("SPACE  ·  Retry");
         retry.setStyle(MenuStyle.prompt());
+        Label sameSeedHint = new Label("S      ·  Same Seed");
+        sameSeedHint.setStyle(MenuStyle.hint());
         Label titleHint = new Label("T      ·  Title");
         titleHint.setStyle(MenuStyle.hint());
 
@@ -670,7 +711,7 @@ public class Main extends Application {
         fade.setAutoReverse(true);
         playLooping(fade);
 
-        hints.getChildren().addAll(retry, titleHint);
+        hints.getChildren().addAll(retry, sameSeedHint, titleHint);
         content.getChildren().addAll(title, statsBox, hints);
         root.getChildren().addAll(overlay, content);
 
@@ -706,6 +747,13 @@ public class Main extends Application {
         Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
         setDebouncedKeyHandler(scene, code -> {
             if (code == KeyCode.SPACE) {
+                showGameScene();
+            } else if (code == KeyCode.S) {
+                // 今の並びを指定シードに固定してからやり直す。
+                // 「さっきの配牌をもう一度」がここだけで完結する
+                if (rngHub != null) {
+                    fixedSeed = rngHub.seed();
+                }
                 showGameScene();
             } else if (code == KeyCode.T) {
                 showStartScene();
@@ -871,6 +919,105 @@ public class Main extends Application {
             return;
         }
         playAdventureRoute(route, () -> playRoutesInSequence(routes, index + 1, onComplete));
+    }
+
+    // =====================================================
+    //  シード指定
+    // =====================================================
+
+    /** 入力欄に出せる桁数。long の最大値が 19 桁なので、それ以上は打てなくする */
+    private static final int SEED_MAX_DIGITS = 18;
+
+    /**
+     * シードを打ち込む画面。同じ並びをもう一度遊ぶ・人に渡すための入口。
+     *
+     * <p>空のまま決定すると指定を解除して「毎回引き直し」に戻る。
+     */
+    Scene makeSeedScene() {
+        stopLoopingAnimations();
+        StackPane root = new StackPane();
+        ImageAssets.addBackdropView(root, ImageAssets.BASE_LAYER,
+                WINDOW_WIDTH, WINDOW_HEIGHT, Backdrop.FAR);
+        Rectangle veil = new Rectangle(WINDOW_WIDTH, WINDOW_HEIGHT,
+                KowloonPalette.alpha(KowloonPalette.SHADOW, 0.72));
+
+        Label title = new Label("SEED");
+        title.setStyle(MenuStyle.title(64, KowloonPalette.LIGHT_HEX));
+
+        StringBuilder typed = new StringBuilder(
+                fixedSeed == null ? "" : String.valueOf(fixedSeed));
+
+        Label field = new Label();
+        field.setStyle(MenuStyle.value(40, KowloonPalette.LIGHT_HEX));
+        Label note = new Label();
+        note.setStyle(MenuStyle.hint());
+
+        Runnable refresh = () -> {
+            field.setText(typed.isEmpty() ? "（毎回引き直し）" : typed.toString());
+            note.setText(typed.isEmpty()
+                    ? "空のまま決定すると、毎回ちがう並びになります"
+                    : "この数字を渡せば、相手も同じ並びで遊べます");
+        };
+        refresh.run();
+
+        VBox box = new VBox(16, field, note);
+        box.setAlignment(Pos.CENTER);
+        box.setStyle(MenuStyle.box());
+        box.setMaxWidth(760);
+        box.setMaxHeight(Region.USE_PREF_SIZE);
+
+        Label hint = new Label("0-9  ·  入力      BACKSPACE  ·  1文字消す      "
+                + "ENTER  ·  決定      ESC  ·  戻る");
+        hint.setStyle(MenuStyle.hint());
+
+        VBox content = new VBox(40, title, box, hint);
+        content.setAlignment(Pos.CENTER);
+        root.getChildren().addAll(veil, content);
+
+        Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
+        scene.setOnKeyPressed(e -> {
+            KeyCode code = e.getCode();
+            if (code == KeyCode.ESCAPE) {
+                showStartScene();
+            } else if (code == KeyCode.ENTER) {
+                fixedSeed = typed.isEmpty() ? null : parseSeedOrNull(typed.toString());
+                showStartScene();
+            } else if (code == KeyCode.BACK_SPACE) {
+                if (!typed.isEmpty()) {
+                    typed.deleteCharAt(typed.length() - 1);
+                    refresh.run();
+                }
+            } else if (typed.length() < SEED_MAX_DIGITS) {
+                String digit = digitOf(code);
+                if (digit != null) {
+                    typed.append(digit);
+                    refresh.run();
+                }
+            }
+        });
+        return scene;
+    }
+
+    /** 桁あふれは弾く。18 桁までに制限しているので通常は起きない */
+    private static Long parseSeedOrNull(String text) {
+        try {
+            return Long.parseLong(text);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** テンキーと最上段の数字を同じに扱う。それ以外は null */
+    private static String digitOf(KeyCode code) {
+        if (code.isDigitKey()) {
+            String name = code.getName();
+            return name.length() == 1 ? name : name.substring(name.length() - 1);
+        }
+        return null;
+    }
+
+    private void showSeedScene() {
+        fadeInScene(makeSeedScene());
     }
 
     // =====================================================
