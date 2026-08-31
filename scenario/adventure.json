@@ -33,31 +33,38 @@
     "interlude": {
       "routes": [
         {
-          "id": "il-1",
-          "title": "1周目",
+          "id": "tut-rotate",
+          "title": "世界が回る",
           "pages": [
-            { "text": "世界が一周した。天井だったものが、床になっている。" },
+            { "text": "積みが崩れる音がして、天井だったものが横に来ていた。" },
             { "speaker": "麻酔科医", "character": "9F-CLINIC",
-              "text": "慣れた？　……無理して慣れなくてもいいのよ。" }
+              "text": "驚いた？　3 ライン消すたびに、世界のほうが 90 度回るの。" },
+            { "speaker": "麻酔科医",
+              "text": "ミノが回るんじゃない。盤面ごと回る。だから積み方の意味が変わるの。" },
+            { "speaker": "麻酔科医",
+              "text": "端に寄せて高く積むと、回ったとき壁になって詰むわよ。平らに均しなさい。" }
           ]
         },
         {
-          "id": "il-2",
-          "title": "2周目",
-          "background": "bg-kowloon-base-layer.png",
+          "id": "tut-floor",
+          "title": "階が変わる",
           "pages": [
             { "speaker": "麻酔科医", "character": "5F-MARKET",
-              "text": "この階、昔は市場だったの。今は誰も降りてこないけど。" },
-            { "text": "積み上がったものの下から、古い看板が覗いていた。" }
+              "text": "回るたびに階も変わる。1F、5F、9F、屋上。四周で一巡ね。" },
+            { "speaker": "麻酔科医",
+              "text": "見た目が変わるだけよ。……ここは昔、市場だったの。" }
           ]
         },
         {
-          "id": "il-3",
-          "title": "3周目",
-          "background": "bg-kowloon-base-layer.png",
+          "id": "tut-pinch",
+          "title": "詰んでも終わらない",
           "pages": [
-            { "speaker": "麻酔科医", "character": "RF-ROOFTOP",
-              "text": "……上まで来たわね。ここから先は、風が強いわよ。" }
+            { "speaker": "麻酔科医", "character": "9F-CLINIC",
+              "text": "積みが天井に届いても、すぐ終わりじゃない。世界が回って場が変わる。" },
+            { "speaker": "麻酔科医",
+              "text": "ただし猶予は 4 回まで。HUD の DANGER がそれ。使い切ったら本当に終わり。" },
+            { "speaker": "麻酔科医",
+              "text": "……説明はここまで。あとは体で覚えなさい。" }
           ]
         }
       ]

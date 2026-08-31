@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
+import java.util.function.IntPredicate;
 
 import javafx.animation.Animation;
 import javafx.animation.AnimationTimer;
@@ -842,17 +842,24 @@ public class Main extends Application {
      *
      * <p>タイマーは呼ばれた時点で既にポーズ済み。戻すのはこちらの責任。
      */
-    private void playInterlude(int index, GameLoopTimer[] timerRef) {
+    private boolean playInterlude(int index, GameLoopTimer[] timerRef) {
         ScenarioRoute route = Scenario.load().interludeAt(index);
-        if (shotMode || route == null || route.isEmpty()) {
-            timerRef[0].resumeFromInterlude();
-            return;
+        // チュートリアルなので一度見たら二度と出さない。2 周目以降のプレイヤーに
+        // 同じ説明を読ませると、進行を止められるだけの邪魔になる。
+        // ここで false を返すとゲームは止まらないので、カウントダウンも挟まらない
+        if (shotMode || route == null || route.isEmpty()
+                || config.hasSeenInterlude(route.id())) {
+            return false;
         }
+        // 飛ばされても記録は残す（エンディングと同じ扱い）
+        config.markInterludeSeen(route.id());
+        timerRef[0].pauseForInterlude();
         Scene gameScene = primaryStage.getScene();
         playAdventureRoute(route, () -> {
             fadeInScene(gameScene);
             timerRef[0].resumeFromInterlude();
         });
+        return true;
     }
 
     // =====================================================
@@ -918,8 +925,11 @@ final class GameLoopTimer extends AnimationTimer {
     private final Set<KeyCode> keys;
     private final SePlayer sePlayer;
     private final BiConsumer<Integer, Integer> gameOverHandler;
-    /** 幕間を挟む合図。引数は何本目か（0 始まり）。Main がシーンを差し替える */
-    private final IntConsumer interludeHandler;
+    /**
+     * 幕間を挟む合図。引数は何本目か（0 始まり）。
+     * Main が実際に画面を出したら true。false なら何も起きていないので進行を続ける。
+     */
+    private final IntPredicate interludeHandler;
 
     // ポーズ状態
     private boolean isPaused = false;
@@ -982,7 +992,7 @@ final class GameLoopTimer extends AnimationTimer {
             Set<KeyCode> keys,
             SePlayer sePlayer,
             BiConsumer<Integer, Integer> gameOverHandler,
-            IntConsumer interludeHandler,
+            IntPredicate interludeHandler,
             Runnable showPauseOverlay,
             Runnable hidePauseOverlay,
             Consumer<Integer> showCountdown,
@@ -1030,6 +1040,15 @@ final class GameLoopTimer extends AnimationTimer {
             hidePauseOverlay.run();
             startCountdown();
         }
+    }
+
+    /**
+     * 幕間を出すと決まったので進行を止める。
+     * <b>出すと決まってから呼ぶこと。</b>先に止めると、既読で何も出さない場合にも
+     * 復帰のカウントダウンが挟まってしまう。
+     */
+    public void pauseForInterlude() {
+        if (!isPaused) togglePause();
     }
 
     /**
@@ -1107,11 +1126,11 @@ final class GameLoopTimer extends AnimationTimer {
             if (pendingInterludeLoop >= 0) {
                 int loopIndex = pendingInterludeLoop;
                 pendingInterludeLoop = -1;
-                // ポーズ機構に乗せる。復帰時のカウントダウンとタイマー補正が
-                // そのまま効くので、長い幕間のあとでも即落下しない
-                if (!isPaused) togglePause();
-                interludeHandler.accept(loopIndex);
-                return;
+                // 出すと決まったときだけ止める。先に止めてしまうと、既読で
+                // 何も出さない場合にもカウントダウンが挟まって進行が途切れる
+                if (interludeHandler.test(loopIndex)) {
+                    return;
+                }
             }
         }
 
@@ -1306,11 +1325,10 @@ final class GameLoopTimer extends AnimationTimer {
         view.getPlayFieldPane().triggerShake();
         proposeDialogue(DialogueTrigger.WORLD_ROTATE, 80, true);
 
-        // フロアを 1 周（回転 4 回）したら幕間を予約する。回転ごとに挟むと
-        // 3 ライン消すたびに読み物が入って進行が途切れる
-        if (controller.getWorldRotateStep() == 0) {
-            pendingInterludeLoop = controller.getWorldRotateLoopCount() - 1;
-        }
+        // 幕間はチュートリアル。世界が回るという仕組みそのものを説明するので、
+        // 回転が起きた「そのとき」に出す。何周も待たせる意味がない。
+        // 既読なら Main 側が黙って素通りするので、2 周目以降は何も起きない
+        pendingInterludeLoop = controller.getWorldRotateCount() - 1;
 
         effectFrozen = true;
         freezeStartNanos = now;

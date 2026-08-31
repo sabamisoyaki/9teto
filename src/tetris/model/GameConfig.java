@@ -26,6 +26,12 @@ public class GameConfig {
      */
     private final Set<String> seenEndings = new LinkedHashSet<>();
 
+    /**
+     * 見終わった幕間の id。幕間はチュートリアルなので<b>初回プレイだけ</b>出す。
+     * ルート単位で覚えるので、後から幕間を足せば既存のプレイヤーにも 1 度だけ出る。
+     */
+    private final Set<String> seenInterludes = new LinkedHashSet<>();
+
     private static final Path SAVE_FILE = Path.of(
         System.getProperty("user.home"), ".9pazzle", "settings.properties");
 
@@ -67,6 +73,16 @@ public class GameConfig {
         if (seenEndings.add(id)) save();
     }
 
+    public boolean hasSeenInterlude(String id) {
+        return seenInterludes.contains(id);
+    }
+
+    /** エンディングと同じく、飛ばされても記録が残るよう入った時点で呼ぶ */
+    public void markInterludeSeen(String id) {
+        if (id == null || id.isBlank()) return;
+        if (seenInterludes.add(id)) save();
+    }
+
     public void save() {
         try {
             Files.createDirectories(SAVE_FILE.getParent());
@@ -77,6 +93,7 @@ public class GameConfig {
             props.setProperty("seEnabled",  String.valueOf(seEnabled));
             props.setProperty("highScore",  String.valueOf(highScore));
             props.setProperty("seenEndings", String.join(",", seenEndings));
+            props.setProperty("seenInterludes", String.join(",", seenInterludes));
             try (OutputStream os = Files.newOutputStream(SAVE_FILE)) {
                 props.store(os, "9pazzle settings");
             }
@@ -95,19 +112,20 @@ public class GameConfig {
             bgmEnabled = parseBoolean(props, "bgmEnabled", bgmEnabled);
             seEnabled  = parseBoolean(props, "seEnabled",  seEnabled);
             highScore  = parseInt(props, "highScore", 0);
-            readSeenEndings(props.getProperty("seenEndings", ""));
+            readCsvInto(props.getProperty("seenEndings", ""), seenEndings);
+            readCsvInto(props.getProperty("seenInterludes", ""), seenInterludes);
         } catch (IOException e) {
             System.err.println("[Config] Failed to load: " + e.getMessage());
         }
     }
 
     /** 空文字・区切りだけ・前後の空白を吸収する。手で書き換えても壊れないように */
-    private void readSeenEndings(String csv) {
-        seenEndings.clear();
+    private static void readCsvInto(String csv, Set<String> target) {
+        target.clear();
         if (csv == null || csv.isBlank()) return;
         for (String id : csv.split(",")) {
             String trimmed = id.trim();
-            if (!trimmed.isEmpty()) seenEndings.add(trimmed);
+            if (!trimmed.isEmpty()) target.add(trimmed);
         }
     }
 
