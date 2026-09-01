@@ -39,6 +39,7 @@ import javafx.util.Duration;
 import tetris.controller.GameController;
 import tetris.model.Board;
 import tetris.model.GameConfig;
+import tetris.model.KeyBindings;
 import tetris.model.Rng;
 import tetris.model.RngHub;
 import tetris.model.Scenario;
@@ -55,6 +56,7 @@ import tetris.view.FxParams;
 import tetris.view.GameView;
 import tetris.view.HudPane;
 import tetris.view.ImageAssets;
+import tetris.view.KeyConfigPane;
 import tetris.view.KowloonPalette;
 import tetris.view.MenuStyle;
 import tetris.view.NextPane;
@@ -428,6 +430,8 @@ public class Main extends Application {
             if (code == KeyCode.ESCAPE) {
                 config.save();
                 showStartScene();
+            } else if (code == KeyCode.K) {
+                showKeyConfigScene();
             }
         });
         return scene;
@@ -435,6 +439,29 @@ public class Main extends Application {
 
     private void showConfigScene() {
         primaryStage.setScene(makeConfigScene());
+    }
+
+    // =====================================================
+    //  キーコンフィグ
+    // =====================================================
+
+    Scene makeKeyConfigScene() {
+        stopLoopingAnimations();
+        KeyConfigPane pane = new KeyConfigPane(config.getKeyBindings());
+        Scene scene = new Scene(pane.getRoot(), WINDOW_WIDTH, WINDOW_HEIGHT);
+        // ここは押しっぱなし対策のデバウンスを通さない。割り当てたいキーが
+        // 「前の画面から押しっぱなし」と誤判定されると、そのキーを設定できなくなる
+        scene.setOnKeyPressed(e -> {
+            if (pane.handle(e.getCode())) {
+                config.save();
+                showConfigScene();
+            }
+        });
+        return scene;
+    }
+
+    private void showKeyConfigScene() {
+        primaryStage.setScene(makeKeyConfigScene());
     }
 
     // =====================================================
@@ -473,6 +500,8 @@ public class Main extends Application {
                 view.getPlayFieldPane().getPlayfieldCanvas().getHeight());
         // 枠線はセルサイズ確定後でないと盤面と揃わない（切り捨てぶん Canvas が余る）
         view.alignPlayFieldFrame(renderer);
+        // 操作ヒントは実際の割り当てを出す。撮影も本編もここを通るので 1 か所で済む
+        view.getHintPane().applyBindings(config.getKeyBindings());
 
         // ポーズオーバーレイとカウントダウンラベル
         StackPane pauseOverlay = buildPauseOverlay();
@@ -542,6 +571,7 @@ public class Main extends Application {
                 hudPane,
                 keys,
                 sePlayer,
+                config.getKeyBindings(),
                 // アドベンチャーパート → エンドクレジット → ゲームオーバー画面 の順。
                 // 話を見せてからスタッフロールへ流す
                 (finalScore, finalLines) -> {
@@ -1082,6 +1112,8 @@ final class GameLoopTimer extends AnimationTimer {
     private final HudPane hudPane;
     private final Set<KeyCode> keys;
     private final SePlayer sePlayer;
+    /** 操作とキーの対応。GameConfig と同じインスタンスなので、設定変更が即反映される */
+    private final KeyBindings keyBindings;
     private final BiConsumer<Integer, Integer> gameOverHandler;
     // ポーズ状態
     private boolean isPaused = false;
@@ -1138,6 +1170,7 @@ final class GameLoopTimer extends AnimationTimer {
             HudPane hudPane,
             Set<KeyCode> keys,
             SePlayer sePlayer,
+            KeyBindings keyBindings,
             BiConsumer<Integer, Integer> gameOverHandler,
             Runnable showPauseOverlay,
             Runnable hidePauseOverlay,
@@ -1154,6 +1187,7 @@ final class GameLoopTimer extends AnimationTimer {
         this.hudPane = hudPane;
         this.keys = keys;
         this.sePlayer = sePlayer;
+        this.keyBindings = keyBindings;
         this.gameOverHandler = gameOverHandler;
         this.showPauseOverlay = showPauseOverlay;
         this.hidePauseOverlay = hidePauseOverlay;
@@ -1260,7 +1294,7 @@ final class GameLoopTimer extends AnimationTimer {
         int oldLines = controller.getLineCount();
         int oldScore = controller.getScore();
 
-        controller.updateInput(keys, now);
+        controller.updateInput(keys, keyBindings, now);
 
         if (now - lastFall > controller.getFallIntervalNanos()) {
             controller.softDrop(false); // 自然落下（加点なし）

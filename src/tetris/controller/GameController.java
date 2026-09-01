@@ -10,6 +10,8 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.paint.Color;
 
 import tetris.model.Board;
+import tetris.model.GameAction;
+import tetris.model.KeyBindings;
 import tetris.model.PieceRandomizer;
 import tetris.model.RngHub;
 import tetris.model.SeEvent;
@@ -305,9 +307,8 @@ public class GameController {
     // ==================================================
     private boolean prevLeft = false;
     private boolean prevRight = false;
-    private boolean prevZ = false;
-    private boolean prevX = false;
-    private boolean prevUp = false;
+    private boolean prevRotL = false;
+    private boolean prevRotR = false;
     // ゲーム開始時点で SPACE は「押されているもの」とみなす。
     // スタート/リトライをSPACEで行うため、押しっぱなしでの即ハードドロップ暴発を防ぐ。
     private boolean prevSpace = true;
@@ -316,16 +317,15 @@ public class GameController {
     private boolean spaceArmed = false;
     private boolean prevH = false;
 
-    public void updateInput(Set<KeyCode> keys, long now) {
+    public void updateInput(Set<KeyCode> keys, KeyBindings binds, long now) {
 
-        boolean left  = keys.contains(KeyCode.LEFT);
-        boolean right = keys.contains(KeyCode.RIGHT);
-        boolean down  = keys.contains(KeyCode.DOWN);
-        boolean up    = keys.contains(KeyCode.UP);
-        boolean z     = keys.contains(KeyCode.Z);
-        boolean x     = keys.contains(KeyCode.X);
-        boolean space = keys.contains(KeyCode.SPACE);
-        boolean h     = keys.contains(KeyCode.H);
+        boolean left  = binds.isDown(GameAction.MOVE_LEFT, keys);
+        boolean right = binds.isDown(GameAction.MOVE_RIGHT, keys);
+        boolean down  = binds.isDown(GameAction.SOFT_DROP, keys);
+        boolean rotR  = binds.isDown(GameAction.ROTATE_RIGHT, keys);
+        boolean rotL  = binds.isDown(GameAction.ROTATE_LEFT, keys);
+        boolean space = binds.isDown(GameAction.HARD_DROP, keys);
+        boolean h     = binds.isDown(GameAction.HOLD, keys);
 
         if (left && right) {
             left = false;
@@ -356,13 +356,11 @@ public class GameController {
             }
         }
 
-        if (z && !prevZ) {
+        if (rotL && !prevRotL) {
             rotateLeft();
         }
-        if (x && !prevX) {
-            rotateRight();
-        }
-        if (up && !prevUp) {
+        // 右回転は既定で X と ↑ の 2 つ。どれか押されていれば 1 回だけ回す
+        if (rotR && !prevRotR) {
             rotateRight();
         }
 
@@ -386,9 +384,8 @@ public class GameController {
 
         prevLeft = left;
         prevRight = right;
-        prevZ = z;
-        prevX = x;
-        prevUp = up;
+        prevRotL = rotL;
+        prevRotR = rotR;
         prevSpace = space;
         prevH = h;
     }

@@ -5,6 +5,8 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
+import tetris.model.GameAction;
+import tetris.model.KeyBindings;
 
 /**
  * 画面下部の操作ヒント帯。キーキャップ風の枠とラベルを 1 セットにして横に並べる。
@@ -14,7 +16,10 @@ import javafx.scene.layout.StackPane;
  */
 public final class KeyHintPane extends StackPane {
 
-    /** キー表記 → 動作 のペア。ここを直せば表示が変わる */
+    /**
+     * キー表記 → 動作 のペア。キー表記は割り当ての既定値で、
+     * {@link #applyBindings} を呼ぶと実際の割り当てに差し替わる。
+     */
     private static final String[][] HINTS = {
         {"← →", "MOVE"},
         {"↓",        "SOFT"},
@@ -50,6 +55,29 @@ public final class KeyHintPane extends StackPane {
         getChildren().add(row);
         setPaneSize(width, height);
         applySkin(UiSkinBank.forStep(0));
+    }
+
+    /**
+     * 実際のキー割り当てを表示へ反映する。
+     * ヒントが嘘をつくと、キーを変えた人が操作を探せなくなる。
+     *
+     * <p>MOVE と ROTATE は 2 つの操作をまとめて 1 チップに出す（左右・左右回転）。
+     * PAUSE は割り当て対象外なので固定表記のまま。
+     */
+    public void applyBindings(KeyBindings binds) {
+        for (int i = 0; i < HINTS.length; i++) {
+            String text = switch (HINTS[i][1]) {
+                case "MOVE"   -> binds.describe(GameAction.MOVE_LEFT)
+                                 + " " + binds.describe(GameAction.MOVE_RIGHT);
+                case "SOFT"   -> binds.describe(GameAction.SOFT_DROP);
+                case "HARD"   -> binds.describe(GameAction.HARD_DROP);
+                case "ROTATE" -> binds.describe(GameAction.ROTATE_LEFT)
+                                 + " / " + binds.describe(GameAction.ROTATE_RIGHT);
+                case "HOLD"   -> binds.describe(GameAction.HOLD);
+                default       -> HINTS[i][0];
+            };
+            keyLabels[i].setText(text);
+        }
     }
 
     public void setPaneSize(double width, double height) {

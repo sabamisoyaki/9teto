@@ -66,7 +66,7 @@ public class ConfigPane {
             })
         );
 
-        Label hint = new Label("ESC  Back");
+        Label hint = new Label("K  Key Config          ESC  Back");
         hint.setStyle(MenuStyle.hint());
 
         content.getChildren().addAll(title, panel, hint);

@@ -32,6 +32,9 @@ public class GameConfig {
      */
     private boolean tutorialSeen = false;
 
+    /** 操作とキーの対応。設定ファイルに無ければ従来の配置 */
+    private final KeyBindings keyBindings = KeyBindings.defaults();
+
     private static final Path SAVE_FILE = Path.of(
         System.getProperty("user.home"), ".9pazzle", "settings.properties");
 
@@ -73,6 +76,10 @@ public class GameConfig {
         if (seenEndings.add(id)) save();
     }
 
+    public KeyBindings getKeyBindings() {
+        return keyBindings;
+    }
+
     public boolean hasSeenTutorial() {
         return tutorialSeen;
     }
@@ -96,6 +103,9 @@ public class GameConfig {
             props.setProperty("highScore",  String.valueOf(highScore));
             props.setProperty("seenEndings", String.join(",", seenEndings));
             props.setProperty("tutorialSeen", String.valueOf(tutorialSeen));
+            for (GameAction action : GameAction.values()) {
+                props.setProperty("key." + action.name(), keyBindings.encode(action));
+            }
             try (OutputStream os = Files.newOutputStream(SAVE_FILE)) {
                 props.store(os, "9pazzle settings");
             }
@@ -116,6 +126,11 @@ public class GameConfig {
             highScore  = parseInt(props, "highScore", 0);
             readCsvInto(props.getProperty("seenEndings", ""), seenEndings);
             tutorialSeen = parseBoolean(props, "tutorialSeen", false);
+            // 保存が無い操作は既定のまま残す（項目を後から増やしても壊れない）
+            for (GameAction action : GameAction.values()) {
+                String csv = props.getProperty("key." + action.name());
+                if (csv != null) keyBindings.decode(action, csv);
+            }
         } catch (IOException e) {
             System.err.println("[Config] Failed to load: " + e.getMessage());
         }
