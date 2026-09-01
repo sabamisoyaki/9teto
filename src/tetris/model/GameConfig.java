@@ -35,8 +35,22 @@ public class GameConfig {
     /** 操作とキーの対応。設定ファイルに無ければ従来の配置 */
     private final KeyBindings keyBindings = KeyBindings.defaults();
 
-    private static final Path SAVE_FILE = Path.of(
+    private static final Path DEFAULT_SAVE_FILE = Path.of(
         System.getProperty("user.home"), ".9pazzle", "settings.properties");
+
+    private final Path saveFile;
+
+    public GameConfig() {
+        this(DEFAULT_SAVE_FILE);
+    }
+
+    /**
+     * 保存先を指定する。テストが実際のセーブデータを壊さないために要る
+     * （既定のままだと検証のたびにプレイ記録が書き換わる）。
+     */
+    public GameConfig(Path saveFile) {
+        this.saveFile = saveFile;
+    }
 
     public double getBgmVolume()        { return bgmVolume; }
     public void   setBgmVolume(double v){ bgmVolume = v; }
@@ -94,7 +108,7 @@ public class GameConfig {
 
     public void save() {
         try {
-            Files.createDirectories(SAVE_FILE.getParent());
+            Files.createDirectories(saveFile.getParent());
             Properties props = new Properties();
             props.setProperty("bgmVolume",  String.valueOf(bgmVolume));
             props.setProperty("seVolume",   String.valueOf(seVolume));
@@ -106,7 +120,7 @@ public class GameConfig {
             for (GameAction action : GameAction.values()) {
                 props.setProperty("key." + action.name(), keyBindings.encode(action));
             }
-            try (OutputStream os = Files.newOutputStream(SAVE_FILE)) {
+            try (OutputStream os = Files.newOutputStream(saveFile)) {
                 props.store(os, "9pazzle settings");
             }
         } catch (IOException e) {
@@ -115,8 +129,8 @@ public class GameConfig {
     }
 
     public void load() {
-        if (!Files.exists(SAVE_FILE)) return;
-        try (InputStream is = Files.newInputStream(SAVE_FILE)) {
+        if (!Files.exists(saveFile)) return;
+        try (InputStream is = Files.newInputStream(saveFile)) {
             Properties props = new Properties();
             props.load(is);
             bgmVolume  = parseDouble(props, "bgmVolume",  bgmVolume);
