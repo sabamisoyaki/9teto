@@ -68,6 +68,15 @@ import tetris.view.UiSkinBank;
 
 public class Main extends Application {
 
+    /**
+     * 製品名。ウィンドウタイトルとタイトル画面に出る、プレイヤーが見る唯一の名前。
+     *
+     * <p>exe とフォルダ名（{@code package.bat} の {@code --name}）は ASCII のまま
+     * 分けてある。{@code .bat} は cmd のコードページで読まれるので日本語を直接書くと
+     * 化けるうえ、{@code ♡}（U+2661）を含む zip は展開ツールによって文字化けする。
+     */
+    static final String PRODUCT_NAME = "グラグラ♡九龍城";
+
     private Stage primaryStage;
     private static final int WINDOW_WIDTH = 1920;
     private static final int WINDOW_HEIGHT = 1080;
@@ -126,7 +135,7 @@ public class Main extends Application {
                 (thread, e) -> ErrorDump.write(e, rngHub));
 
         this.primaryStage = stage;
-        stage.setTitle("TETRIS");
+        stage.setTitle(PRODUCT_NAME);
         stage.setResizable(false);
         // フォーカスを失うと KEY_RELEASED が届かないことがあるため、押下状態を捨てる。
         stage.focusedProperty().addListener((obs, wasFocused, focused) -> {
@@ -327,10 +336,13 @@ public class Main extends Application {
         VBox content = new VBox(40);
         content.setAlignment(Pos.CENTER);
 
-        Label title = new Label("TETRIS");
-        // -fx-effect は setEffect(glow) と競合するためスタイル文字列には入れない
-        title.setStyle("-fx-font-size: 100px; -fx-font-weight: bold;"
-            + " -fx-text-fill: " + KowloonPalette.LIGHT_HEX + "; -fx-font-family: 'Courier New';");
+        Label title = new Label(PRODUCT_NAME);
+        // -fx-effect は setEffect(glow) と競合するためスタイル文字列には入れない。
+        // 他画面は 'Courier New' だが、あれは日本語グリフを持たない。製品名を出す
+        // ここだけは和文書体を明示する（指定しないと環境任せの代替に落ちる）
+        title.setStyle("-fx-font-size: 88px; -fx-font-weight: bold;"
+            + " -fx-text-fill: " + KowloonPalette.LIGHT_HEX + ";"
+            + " -fx-font-family: 'Yu Gothic UI', 'Meiryo', 'MS Gothic', sans-serif;");
 
         DropShadow glow = new DropShadow(30, KowloonPalette.NEON);
         glow.setSpread(0.25);
@@ -1553,7 +1565,8 @@ final class GameLoopTimer extends AnimationTimer {
             case 1 -> "+100";
             case 2 -> "+300  DOUBLE!";
             case 3 -> "+500  TRIPLE!";
-            case 4 -> "+800  TETRIS!!";
+            // 4ライン同時消しの通称は商標なので使わない。九龍城の「階まるごと」に寄せる
+            case 4 -> "+800  QUAD!!";
             default -> "+0";
         };
         javafx.scene.paint.Color color = cleared >= 4 ? javafx.scene.paint.Color.GOLD

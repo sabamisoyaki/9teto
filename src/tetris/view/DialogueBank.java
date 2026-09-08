@@ -21,8 +21,9 @@ public final class DialogueBank {
         DialogueTrigger.DOUBLE_TRIPLE, List.of(
             "いい感じよ。その調子。",
             "まとめて消すと気持ちいいでしょ？"),
+        // 4ライン同時消し。通称は商標なので台詞にも出さない
         DialogueTrigger.TETRIS, List.of(
-            "テトリス！　やるじゃない！",
+            "四階まとめて……やるじゃない！",
             "4ライン同時……見直したわ。"),
         DialogueTrigger.ROTATE_SOON, List.of(
             "次の1ラインで世界が回るわよ。準備はいい？"),
