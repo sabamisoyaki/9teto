@@ -53,7 +53,7 @@ stderr のリダイレクトで JavaFX 例外を捕捉できる(正常時は 0 �
   2560×1440 の画面に収まらず右側（HUD）が切れる。
   → 起動時に `-Dglass.win.uiScale=1.0` を付けて 1:1 で描かせること（上の起動コマンド参照）。
   この状態でウィンドウを (0,0) へ置くと、クライアント領域は画面座標 (10, 40) から 1920×1080
-- キー送信: `(New-Object -ComObject WScript.Shell)` → `AppActivate('TETRIS')` → `SendKeys(...)`
+- キー送信: `(New-Object -ComObject WScript.Shell)` → `AppActivate('グラグラ♡九龍城')` → `SendKeys(...)`
   - ゲーム操作キー(H / 矢印など)は SendKeys だと押下→解放が速すぎて 1 フレームにも乗らず
     取りこぼす。user32 `keybd_event` で押下後 150ms ほど待ってから解放すること
   - SPACE=開始 / `{F2}`=スキン切替 / `{F3}`=配置切替 / `u`=総入れ替え / `{ESC}`=ポーズ(エンドクレジット中はスキップ)
@@ -82,7 +82,7 @@ stderr のリダイレクトで JavaFX 例外を捕捉できる(正常時は 0 �
 
 ### ウィンドウ操作の注意
 
-- `AppActivate('TETRIS')` は取りこぼすことがある。`MainWindowHandle` を取って
+- `AppActivate('グラグラ♡九龍城')` は取りこぼすことがある。`MainWindowHandle` を取って
   user32 `SetForegroundWindow` を**撮影の直前に毎回**呼ぶ方が確実
 - `Start-Process` は `-Wait` 無しの detached 起動で問題ない（窓は残る）。
   `-Wait` を付けるとツール側を run_in_background にしないと通話がブロックする

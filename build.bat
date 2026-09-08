@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ----------------------------------------
-echo  Building TETRIS (Compiling Java files)
+echo  Building GuraGuraKowloon (Compiling Java files)
 echo ----------------------------------------
 
 rem Resolve javac and jar

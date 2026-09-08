@@ -6,7 +6,7 @@ set "PATH=%SystemRoot%\System32;%SystemRoot%\System32\WindowsPowerShell\v1.0;%PA
 cd /d "%~dp0"
 
 echo ========================================
-echo  Packaging TETRIS as standalone exe
+echo  Packaging GuraGuraKowloon as standalone exe
 echo ========================================
 
 rem ---- Find JDK ----
@@ -79,9 +79,12 @@ echo [4/5] Running jpackage...
 if exist "dist" rmdir /s /q "dist"
 mkdir "dist"
 
+rem The display name is Japanese (see Main.PRODUCT_NAME). Keep the exe, the folder
+rem and the zip ASCII: this .bat is read in the console code page, and zip entries
+rem containing U+2661 get mojibake in some extractors.
 "%JPACKAGE%" ^
   --type app-image ^
-  --name Tetris ^
+  --name GuraGuraKowloon ^
   --app-version 1.0.0 ^
   --input "package-input" ^
   --main-jar app.jar ^
@@ -101,24 +104,24 @@ rmdir /s /q "package-input"
 
 rem ---- Step 6: Zip ----
 echo [6/6] Creating zip archive...
-if exist "dist\Tetris.zip" del /f /q "dist\Tetris.zip"
+if exist "dist\GuraGuraKowloon.zip" del /f /q "dist\GuraGuraKowloon.zip"
 
 rem PATH に頼らず絶対パスで叩く。PATH の中身は環境によって削られていることがある
 set "PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 if exist "%PS%" (
-    "%PS%" -NoProfile -Command "try { Compress-Archive -Path 'dist\Tetris' -DestinationPath 'dist\Tetris.zip' -ErrorAction Stop } catch { exit 1 }"
+    "%PS%" -NoProfile -Command "try { Compress-Archive -Path 'dist\GuraGuraKowloon' -DestinationPath 'dist\GuraGuraKowloon.zip' -ErrorAction Stop } catch { exit 1 }"
 ) else (
     rem PowerShell が無い環境の逃げ道。tar は Windows 10 1803 以降に同梱されている
-    tar -c -f "dist\Tetris.zip" --format=zip -C dist Tetris
+    tar -c -f "dist\GuraGuraKowloon.zip" --format=zip -C dist GuraGuraKowloon
 )
 
 rem 終了コードだけだと取りこぼすことがあるので、実物ができたかで判定する
-if not exist "dist\Tetris.zip" ( echo [ERROR] Zip creation failed. & pause & goto :eof )
+if not exist "dist\GuraGuraKowloon.zip" ( echo [ERROR] Zip creation failed. & pause & goto :eof )
 
 echo.
 echo ==========================================
 echo  DONE!
-echo  Executable : dist\Tetris\Tetris.exe
-echo  Zip        : dist\Tetris.zip
+echo  Executable : dist\GuraGuraKowloon\GuraGuraKowloon.exe
+echo  Zip        : dist\GuraGuraKowloon.zip
 echo ==========================================
 pause

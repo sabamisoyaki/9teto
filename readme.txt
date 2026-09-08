@@ -1,5 +1,5 @@
-9pazzle Tetris
-==============
+GuraGuraKowloon (display name: GuraGura Kowloon-jo)
+================================================
 
 How to run (development)
 --------------------------
@@ -16,9 +16,9 @@ How to build a standalone exe
 ------------------------------
 Run package.bat — no arguments needed.
 
-  Output: dist\Tetris\Tetris.exe
+  Output: dist\GuraGuraKowloon\GuraGuraKowloon.exe
 
-The dist\Tetris\ folder contains a bundled JRE and all assets.
+The dist\GuraGuraKowloon\ folder contains a bundled JRE and all assets.
 Share the entire folder; no Java installation required on the target machine.
 
 BGM (optional)
